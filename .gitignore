@@ -1,0 +1,54 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+*.pyc
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+*.pid
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Claude Code
+.claude/
+
+# Logs
+*.log
+logs/
+
+# Docker volumes (local)
+postgres_data/
+mongo_data/
+redis_data/
+es_data/
+
+# Test artifacts
+.pytest_cache/
+htmlcov/
+.coverage

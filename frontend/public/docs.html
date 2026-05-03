@@ -1,0 +1,3535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
+<title>OMS Documentation — Omni-Channel Order Management System</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --sidebar-bg: #161b27;
+    --card-bg: #1a2035;
+    --card-border: #243050;
+    --accent: #3b82f6;
+    --accent-light: #60a5fa;
+    --text: #e2e8f0;
+    --text-muted: #7c8db0;
+    --text-dim: #4a5580;
+    --green: #22c55e;
+    --yellow: #eab308;
+    --red: #ef4444;
+    --purple: #a855f7;
+    --orange: #f97316;
+    --code-bg: #0d1526;
+    --code-border: #1e3050;
+    --table-header: #1e2d4a;
+    --table-row-alt: #16213a;
+    --sidebar-width: 260px;
+    --header-height: 56px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.6;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  /* ── Top Header ── */
+  header {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: var(--header-height);
+    background: var(--sidebar-bg);
+    border-bottom: 1px solid var(--card-border);
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    gap: 12px;
+    z-index: 100;
+  }
+
+  .header-logo {
+    width: 32px; height: 32px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 14px; color: white;
+    flex-shrink: 0;
+  }
+
+  .header-title {
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--text);
+  }
+
+  .header-subtitle {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-left: 8px;
+  }
+
+  .header-badge {
+    margin-left: auto;
+    display: flex; gap: 8px; align-items: center;
+  }
+
+  .badge {
+    display: inline-flex; align-items: center;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  .badge-blue   { background: #1d3a6e; color: #60a5fa; }
+  .badge-green  { background: #14532d; color: #4ade80; }
+  .badge-yellow { background: #422006; color: #fbbf24; }
+  .badge-red    { background: #450a0a; color: #f87171; }
+  .badge-purple { background: #3b0764; color: #d8b4fe; }
+  .badge-orange { background: #431407; color: #fb923c; }
+  .badge-gray   { background: #1e293b; color: #94a3b8; }
+
+  /* ── Layout ── */
+  .layout {
+    display: flex;
+    padding-top: var(--header-height);
+    min-height: calc(100vh - var(--header-height));
+  }
+
+  /* ── Sidebar ── */
+  nav {
+    position: fixed;
+    top: var(--header-height);
+    left: 0;
+    width: var(--sidebar-width);
+    height: calc(100vh - var(--header-height));
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--card-border);
+    overflow-y: auto;
+    padding: 16px 0;
+    flex-shrink: 0;
+  }
+
+  nav::-webkit-scrollbar { width: 4px; }
+  nav::-webkit-scrollbar-track { background: transparent; }
+  nav::-webkit-scrollbar-thumb { background: var(--card-border); border-radius: 2px; }
+
+  .nav-section {
+    padding: 4px 16px 2px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    margin-top: 12px;
+  }
+
+  nav a {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 16px;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 13px;
+    transition: all 0.15s;
+    border-left: 2px solid transparent;
+  }
+
+  nav a:hover {
+    background: rgba(59, 130, 246, 0.08);
+    color: var(--text);
+    border-left-color: var(--accent);
+  }
+
+  nav a.active {
+    background: rgba(59, 130, 246, 0.12);
+    color: var(--accent-light);
+    border-left-color: var(--accent);
+  }
+
+  nav a .nav-icon {
+    width: 14px; height: 14px; opacity: 0.7; flex-shrink: 0;
+  }
+
+  /* ── Main Content ── */
+  main {
+    margin-left: var(--sidebar-width);
+    flex: 1;
+    max-width: 860px;
+    padding: 40px 48px 80px;
+  }
+
+  /* ── Sections ── */
+  section {
+    margin-bottom: 64px;
+    scroll-margin-top: calc(var(--header-height) + 24px);
+  }
+
+  h1 {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--text);
+    margin-bottom: 8px;
+    letter-spacing: -0.02em;
+  }
+
+  .lead {
+    font-size: 15px;
+    color: var(--text-muted);
+    margin-bottom: 32px;
+    line-height: 1.7;
+    max-width: 640px;
+  }
+
+  h2 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 40px 0 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--card-border);
+    display: flex; align-items: center; gap: 10px;
+  }
+
+  h2 .section-num {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    background: rgba(59, 130, 246, 0.15);
+    border-radius: 4px;
+    padding: 2px 6px;
+  }
+
+  h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--accent-light);
+    margin: 28px 0 10px;
+  }
+
+  h4 {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 20px 0 8px;
+  }
+
+  p {
+    color: var(--text-muted);
+    margin-bottom: 12px;
+    line-height: 1.75;
+  }
+
+  strong { color: var(--text); font-weight: 600; }
+
+  /* ── Code Blocks ── */
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    overflow-x: auto;
+    margin: 12px 0 20px;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: #c9d5ef;
+    position: relative;
+  }
+
+  pre::before {
+    content: attr(data-lang);
+    position: absolute;
+    top: 8px; right: 12px;
+    font-size: 10px;
+    color: var(--text-dim);
+    font-family: inherit;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  code {
+    font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+    font-size: 12px;
+    color: #93c5fd;
+    background: rgba(59, 130, 246, 0.1);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+
+  pre code {
+    background: none;
+    padding: 0;
+    color: inherit;
+    font-size: inherit;
+  }
+
+  /* ── Tables ── */
+  .table-wrap {
+    overflow-x: auto;
+    margin: 12px 0 20px;
+    border-radius: 10px;
+    border: 1px solid var(--card-border);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  thead tr {
+    background: var(--table-header);
+  }
+
+  th {
+    text-align: left;
+    padding: 10px 14px;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 9px 14px;
+    color: var(--text-muted);
+    border-top: 1px solid var(--card-border);
+    vertical-align: top;
+  }
+
+  tr:nth-child(even) td { background: var(--table-row-alt); }
+
+  td strong, td code { color: var(--text); }
+
+  td .method {
+    font-family: monospace;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  .method-get    { background: #1a3a1a; color: #4ade80; }
+  .method-post   { background: #1a2d4a; color: #60a5fa; }
+  .method-patch  { background: #2a2a10; color: #fbbf24; }
+  .method-delete { background: #2a1010; color: #f87171; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin: 12px 0;
+  }
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    margin: 12px 0 20px;
+  }
+
+  .stat-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+
+  .stat-card .stat-label { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
+  .stat-card .stat-value { font-size: 22px; font-weight: 700; color: var(--text); }
+  .stat-card .stat-desc  { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+  /* ── Pipeline Diagram ── */
+  .pipeline {
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.9;
+    color: #8bafd4;
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  /* ── Architecture Diagram ── */
+  .arch-diagram {
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 10px;
+    padding: 24px;
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.8;
+    color: #8bafd4;
+    overflow-x: auto;
+    white-space: pre;
+    margin: 16px 0;
+  }
+
+  /* ── Strategy Cards ── */
+  .strategy-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 16px 0;
+  }
+
+  .strategy-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+
+  .strategy-card h4 {
+    margin: 0 0 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent-light);
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  .strategy-card .formula {
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 11px;
+    color: #fbbf24;
+    background: rgba(251, 191, 36, 0.08);
+    padding: 4px 8px;
+    border-radius: 4px;
+    margin: 6px 0;
+    display: block;
+  }
+
+  .strategy-card p {
+    font-size: 12px;
+    margin: 0;
+    color: var(--text-muted);
+  }
+
+  /* ── Endpoint List ── */
+  .endpoint {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--card-border);
+  }
+
+  .endpoint:last-child { border-bottom: none; }
+
+  .endpoint .path {
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 12px;
+    color: var(--text);
+  }
+
+  .endpoint .desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 1px;
+  }
+
+  /* ── Callout ── */
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: rgba(59, 130, 246, 0.06);
+    border-radius: 0 8px 8px 0;
+    padding: 12px 16px;
+    margin: 16px 0;
+  }
+
+  .callout.warn { border-left-color: var(--yellow); background: rgba(234, 179, 8, 0.06); }
+  .callout.danger { border-left-color: var(--red); background: rgba(239, 68, 68, 0.06); }
+  .callout.success { border-left-color: var(--green); background: rgba(34, 197, 94, 0.06); }
+
+  .callout p { margin: 0; font-size: 13px; }
+
+  /* ── Divider ── */
+  hr {
+    border: none;
+    border-top: 1px solid var(--card-border);
+    margin: 40px 0;
+  }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--card-border); border-radius: 3px; }
+
+  /* ── Back to app button ── */
+  .back-to-app {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--accent-light);
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    transition: background 0.15s;
+  }
+
+  .back-to-app:hover { background: rgba(59, 130, 246, 0.25); }
+
+  /* ── Inline list ── */
+  ul, ol {
+    padding-left: 20px;
+    margin: 8px 0 16px;
+    color: var(--text-muted);
+  }
+
+  li { margin-bottom: 4px; line-height: 1.7; }
+
+  /* ── Node type key ── */
+  .node-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 10px;
+    margin: 12px 0;
+  }
+
+  .node-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .node-card .node-code {
+    font-family: monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .node-card .node-loc {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .node-card .node-caps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+  }
+
+  .cap {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+  }
+
+  .cap-ship     { background: #1a3a4a; color: #38bdf8; }
+  .cap-pickup   { background: #1a3a1a; color: #4ade80; }
+  .cap-curbside { background: #2a2a10; color: #fbbf24; }
+  .cap-sameday  { background: #2d1b4a; color: #c084fc; }
+
+  /* ── Code Block (used in multi-tenant sections) ── */
+  .code-block {
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 10px;
+    margin: 12px 0 20px;
+    overflow: hidden;
+  }
+
+  .code-title {
+    background: rgba(59, 130, 246, 0.08);
+    border-bottom: 1px solid var(--code-border);
+    padding: 8px 16px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    letter-spacing: 0.04em;
+  }
+
+  .code-block pre {
+    border: none;
+    border-radius: 0;
+    margin: 0;
+    padding: 16px 20px;
+  }
+
+  /* ── Step list ── */
+  .steps {
+    list-style: none;
+    padding: 0;
+    counter-reset: step-counter;
+    margin: 12px 0 20px;
+  }
+
+  .steps li {
+    counter-increment: step-counter;
+    display: flex;
+    gap: 14px;
+    margin-bottom: 16px;
+    align-items: flex-start;
+  }
+
+  .steps li::before {
+    content: counter(step-counter);
+    flex-shrink: 0;
+    width: 24px; height: 24px;
+    background: rgba(59, 130, 246, 0.2);
+    border: 1px solid rgba(59, 130, 246, 0.4);
+    color: var(--accent-light);
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    margin-top: 2px;
+  }
+
+  .steps li > div { flex: 1; }
+  .steps li > div > strong { color: var(--text); display: block; margin-bottom: 3px; }
+  .steps li > div > p, .steps li > div > ul { margin: 0; }
+
+  /* ── Role badge colors ── */
+  .role-platform-owner { background: #713f12; color: #fef08a; }
+  .role-superadmin { background: #3b0764; color: #d8b4fe; }
+  .role-user { background: #1e3a5f; color: #93c5fd; }
+  .role-org-owner { background: #052e16; color: #4ade80; }
+  .role-org-admin { background: #1a3a2a; color: #6ee7b7; }
+  .role-org-member { background: #1e293b; color: #94a3b8; }
+  .role-env-owner { background: #450a0a; color: #fca5a5; }
+  .role-env-admin { background: #431407; color: #fb923c; }
+  .role-env-member { background: #1a2d4a; color: #93c5fd; }
+  .role-env-viewer { background: #1e293b; color: #94a3b8; }
+
+  @media (max-width: 900px) {
+    nav { display: none; }
+    main { margin-left: 0; padding: 24px 20px 60px; }
+    .strategy-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ HEADER ═══ -->
+<header>
+  <div class="header-logo">OMS</div>
+  <div>
+    <span class="header-title">OMS Documentation</span>
+    <span class="header-subtitle">v2.0 · Multi-Tenant Omni-Channel Order Management System</span>
+  </div>
+  <div class="header-badge">
+    <span class="badge badge-green">Production Grade</span>
+    <span class="badge badge-blue">FastAPI 0.111</span>
+    <span class="badge badge-purple">Python 3.12</span>
+    <span class="badge badge-orange">Multi-Tenant</span>
+    <a href="/" class="back-to-app">← Back to App</a>
+  </div>
+</header>
+
+<div class="layout">
+
+<!-- ═══ SIDEBAR NAV ═══ -->
+<nav id="sidebar">
+  <div class="nav-section">Overview</div>
+  <a href="#intro">Introduction</a>
+  <a href="#architecture">Architecture</a>
+  <a href="#techstack">Tech Stack</a>
+
+  <div class="nav-section">Data Layer</div>
+  <a href="#postgres">PostgreSQL Models</a>
+  <a href="#mongodb">MongoDB Collections</a>
+  <a href="#redis">Redis Schema</a>
+  <a href="#elasticsearch">Elasticsearch Indexes</a>
+
+  <div class="nav-section">API Reference</div>
+  <a href="#api-orders">Orders</a>
+  <a href="#api-inventory">Inventory</a>
+  <a href="#api-nodes">Fulfillment Nodes</a>
+  <a href="#api-sourcing">Sourcing Rules</a>
+  <a href="#api-search">Search</a>
+  <a href="#api-analytics">Analytics</a>
+  <a href="#api-webhooks">Webhooks</a>
+  <a href="#api-connectors">Connectors</a>
+  <a href="#api-architect">AI Architect</a>
+
+  <div class="nav-section">Engine & Workers</div>
+  <a href="#sourcing-engine">Sourcing Engine</a>
+  <a href="#ai-architecture">AI-Native Architecture</a>
+  <a href="#pipeline">Fulfillment Pipeline</a>
+  <a href="#celery">Celery Workers</a>
+  <a href="#webhook-system">Webhook System</a>
+  <a href="#connector-system">Connector System</a>
+  <a href="#monitoring">Monitoring &amp; Traceability</a>
+
+  <div class="nav-section">Admin Console</div>
+  <a href="#admin-console">Admin Console Overview</a>
+  <a href="#rbac-model">RBAC Model</a>
+  <a href="#user-management">User Management</a>
+  <a href="#access-control">Access Control</a>
+  <a href="#permission-groups">Permission Groups</a>
+
+  <div class="nav-section">Multi-Tenant Platform</div>
+  <a href="#multi-tenant-overview">Architecture Overview</a>
+  <a href="#platform-roles">Role Hierarchy</a>
+  <a href="#org-creation">Creating an Organization</a>
+  <a href="#env-provisioning">Provisioning Environments</a>
+  <a href="#env-types">Environment Types</a>
+  <a href="#env-members">Managing Members</a>
+  <a href="#env-switcher">Environment Switcher</a>
+  <a href="#env-deployment">Deployment (Docker Compose)</a>
+  <a href="#request-routing">Request Routing</a>
+  <a href="#data-isolation">Data Isolation</a>
+
+  <div class="nav-section">Operations</div>
+  <a href="#config">Configuration</a>
+  <a href="#running">Running the System</a>
+  <a href="#e2e">End-to-End Flow</a>
+  <a href="#seed-data">Seed Data Reference</a>
+</nav>
+
+<!-- ═══ MAIN CONTENT ═══ -->
+<main>
+
+<!-- ══ INTRO ══ -->
+<section id="intro">
+  <h1>OMS — Omni-Channel Order Management System</h1>
+  <p class="lead">
+    A <strong>production-grade</strong>, fully async, <strong>multi-tenant</strong> Order Management System built with Python 3.12,
+    FastAPI, and a polyglot persistence layer — PostgreSQL, MongoDB, Redis, and Elasticsearch.
+    Designed for high-throughput omni-channel retail with intelligent multi-node sourcing, real-time
+    inventory reservation, a fully automated fulfillment pipeline, and complete data isolation between
+    organizations and environments.
+  </p>
+
+  <div class="card-grid">
+    <div class="stat-card">
+      <div class="stat-label">API Endpoints</div>
+      <div class="stat-value">80+</div>
+      <div class="stat-desc">11 routers incl. orgs, envs, admin</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Docker Services</div>
+      <div class="stat-value">9+</div>
+      <div class="stat-desc">Main stack + per-tenant stacks</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Celery Queues</div>
+      <div class="stat-value">7</div>
+      <div class="stat-desc">With per-env fan-out tasks</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Sourcing Strategies</div>
+      <div class="stat-value">7</div>
+      <div class="stat-desc">Incl. AI_ADAPTIVE + AI_HYBRID</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">RBAC Layers</div>
+      <div class="stat-value">3</div>
+      <div class="stat-desc">Platform → Org → Environment</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Data Isolation</div>
+      <div class="stat-value">DB</div>
+      <div class="stat-desc">Separate PG DB per environment</div>
+    </div>
+  </div>
+
+  <div class="callout success">
+    <p><strong>Quick start:</strong> Run <code>docker compose up -d --build</code> then seed with <code>docker compose exec api python scripts/seed.py</code> to get a fully operational system with 8 nodes, 64 inventory records, and 5 sourcing rules. A default organization and Production environment are seeded automatically on first startup.</p>
+  </div>
+</section>
+
+<!-- ══ ARCHITECTURE ══ -->
+<section id="architecture">
+  <h2><span class="section-num">1</span> Architecture Overview</h2>
+
+  <div class="arch-diagram">┌─────────────────────────────────────────────────────────────────────────┐
+│                           CLIENT LAYER                                  │
+│       WEB  │  MOBILE  │  POS  │  API  │  MARKETPLACE                   │
+└──────────────────────────────┬──────────────────────────────────────────┘
+                               │ HTTP/REST  +  X-OMS-Environment header
+┌──────────────────────────────▼──────────────────────────────────────────┐
+│               CONTROL PLANE  (shared oms_db)                            │
+│   /auth  /admin  /organizations  /environments                          │
+│   users · user_groups · organizations · environments                    │
+│   user_organization_roles · user_environment_roles                      │
+└──────────────────────────────┬──────────────────────────────────────────┘
+                               │ environment resolved → get_db() selects engine
+       ┌───────────────────────┼───────────────────────────────┐
+       ▼                       ▼                               ▼
+  oms_db (default prod)   oms_acme_dev               oms_widgetco_prod
+  ─────────────────────   ────────────               ─────────────────
+  /orders  /inventory     /orders  /inventory        /orders  /inventory
+  /nodes   /sourcing-rules  /nodes                   /nodes
+  /connectors  /architect
+       │                       │                               │
+       ▼                       ▼                               ▼
+  PostgreSQL    MongoDB     Redis           Elasticsearch
+  (per-env DB)  (per-env    (Cache /        (per-env index
+                 MongoDB DBs) Celery broker)  prefix)
+       │
+       ▼
+  CELERY WORKERS (7 queues, per-environment fan-out)
+  sourcing → fulfillment → carrier → notifications → webhooks → connectors → learning
+                                                                                ▲
+                                                                      AI Learning Loop
+                                                            (label outcomes · discover patterns
+                                                             evaluate experiments · propose rules)</div>
+
+  <h3>AI-Native 5-Layer Architecture</h3>
+  <div class="arch-diagram">┌─────────────────────────────────────────────────────────────────┐
+│  Layer 5: Continuous Learning Loop                              │
+│  (Nightly pattern discovery · Outcome labeling · A/B testing)  │
+├─────────────────────────────────────────────────────────────────┤
+│  Layer 4: Meta-AI Framework (Self-Modification)                 │
+│  (Natural language → proposals → human approval → safe apply)  │
+├─────────────────────────────────────────────────────────────────┤
+│  Layer 3: AI Architect UI                                       │
+│  (Proposals · Patterns · Experiments · Performance dashboards) │
+├─────────────────────────────────────────────────────────────────┤
+│  Layer 2: AI Sourcing Engine (AI_ADAPTIVE strategy)             │
+│  (KubeAI-scored nodes · confidence threshold · rule fallback)  │
+├─────────────────────────────────────────────────────────────────┤
+│  Layer 1: Intelligence Data Foundation                          │
+│  (Outcome tracking · Pattern storage · Feature extraction)     │
+└─────────────────────────────────────────────────────────────────┘</div>
+
+  <h3>Request Lifecycle</h3>
+  <ol>
+    <li>Client POSTs an order to <code>POST /orders</code></li>
+    <li>FastAPI validates the request via Pydantic v2 schemas</li>
+    <li>Order is written to <strong>PostgreSQL</strong> and indexed in <strong>Elasticsearch</strong></li>
+    <li>Order-created event is written to <strong>MongoDB</strong> audit log</li>
+    <li>A <code>source_order</code> task is enqueued on the <strong>Redis</strong>-backed <code>sourcing</code> Celery queue</li>
+    <li>Sourcing Engine evaluates active rules — may route via A/B experiment or <code>AI_ADAPTIVE</code> strategy</li>
+    <li>Pipeline tasks flow: <code>sourcing → fulfillment (pick → pack) → carrier (label + ship) → notifications → webhooks</code></li>
+    <li>Delivery outcome is labeled by the <code>learning</code> worker and fed back into the pattern store</li>
+  </ol>
+
+  <h3>Directory Structure</h3>
+  <pre data-lang="tree">D:\OMS\
+├── Dockerfile                      # Multi-stage Python 3.12 image
+├── docker-compose.yml              # All 9 services
+├── requirements.txt                # All Python dependencies
+├── .env                            # Local environment variables
+│
+├── app/
+│   ├── main.py                     # FastAPI app, lifespan, router registration
+│   ├── config.py                   # Pydantic Settings (reads .env)
+│   │
+│   ├── database/
+│   │   ├── postgres.py             # Async SQLAlchemy engine + session factory
+│   │   ├── mongodb.py              # Motor async client + index creation
+│   │   ├── redis_client.py         # aioredis pool + cache helpers
+│   │   └── elasticsearch_client.py # Async ES client + index mapping creation
+│   │
+│   ├── models/postgres/
+│   │   ├── order_models.py         # Order, OrderItem, FulfillmentAllocation, Shipment
+│   │   ├── inventory_models.py     # InventoryItem, InventoryAdjustment, InventoryReservation
+│   │   ├── node_models.py          # FulfillmentNode + NodeType/NodeStatus enums
+│   │   └── sourcing_rule_models.py # SourcingRule + SourcingStrategy/ConditionOperator enums
+│   │
+│   ├── schemas/                    # Pydantic v2 request/response schemas
+│   ├── routers/                    # FastAPI route handlers (7 files, 44 endpoints)
+│   ├── services/
+│   │   ├── sourcing_engine.py      # Intelligence core (rule eval, node scoring, allocation)
+│   │   └── webhook.py              # HMAC-SHA256 signed delivery
+│   │
+│   ├── models/postgres/
+│   │   ├── ...existing models...
+│   │   └── ai_models.py            # AIProposal, AIExperiment, CustomAttributeDefinition,
+│   │                               #   UIWidget, SourcingOutcomeLabel + enums
+│   │
+│   ├── services/
+│   │   ├── sourcing_engine.py      # Core + AI_ADAPTIVE + experiment traffic splitting
+│   │   ├── ai_sourcing.py          # AISourcingAdvisor — KubeAI node scoring
+│   │   ├── pattern_discovery.py    # PatternDiscoveryService — nightly cluster aggregation
+│   │   └── schema_evolution.py     # SchemaEvolutionEngine — safe additive schema changes
+│   │
+│   └── workers/
+│       ├── celery_app.py           # Celery factory + 7 queues + beat schedule
+│       ├── sourcing.py             # source_order task (writes sourcing_outcomes to MongoDB)
+│       ├── fulfillment.py          # start_picking, complete_packing, reset counters
+│       ├── carrier.py              # book_shipment, simulate_delivery, sync tracking
+│       ├── notifications.py        # Email/SMS notification tasks
+│       ├── webhooks.py             # dispatch_webhook, retry_failed_webhooks
+│       ├── connectors.py           # sync_fulfillment_to_connector, poll_amazon_orders
+│       └── learning.py             # label_sourcing_outcomes, discover_patterns,
+│                                   #   update_node_performance, evaluate_ai_experiments
+│
+├── frontend/                       # React + Vite + TypeScript GUI (port 3000)
+├── scripts/
+│   └── seed.py                     # Seeds all 4 databases with realistic data
+└── tests/
+    └── test_imports.py             # 13 import + unit tests</pre>
+</section>
+
+<!-- ══ TECH STACK ══ -->
+<section id="techstack">
+  <h2><span class="section-num">2</span> Tech Stack</h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Layer</th><th>Technology</th><th>Purpose</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>API Framework</strong></td><td><span class="badge badge-blue">FastAPI 0.111</span> + Uvicorn</td><td>Async REST API, OpenAPI docs, Pydantic v2 validation</td></tr>
+        <tr><td><strong>ORM</strong></td><td>SQLAlchemy 2.0 (async)</td><td>PostgreSQL ORM with asyncpg driver</td></tr>
+        <tr><td><strong>Primary DB</strong></td><td><span class="badge badge-blue">PostgreSQL 16</span></td><td>Orders, inventory, nodes, sourcing rules, webhooks</td></tr>
+        <tr><td><strong>Document DB (events)</strong></td><td><span class="badge badge-green">MongoDB 7</span> (Motor) — <code>oms_events</code></td><td>Order audit trail, product catalog, webhook log, error monitoring</td></tr>
+        <tr><td><strong>Document DB (AI)</strong></td><td><span class="badge badge-green">MongoDB 7</span> (Motor) — <code>oms_ai_learning</code></td><td>AI learning pipeline: sourcing decisions, cluster patterns, node metrics. Isolated to prevent analytical writes from affecting transactional read latency. 90-day TTL on outcomes, 180-day on patterns.</td></tr>
+        <tr><td><strong>Cache / Queue</strong></td><td><span class="badge badge-red">Redis 7.2</span></td><td>Celery broker/backend, cache, rate-limiting</td></tr>
+        <tr><td><strong>Search</strong></td><td><span class="badge badge-yellow">Elasticsearch 8.12</span></td><td>Full-text order and product search</td></tr>
+        <tr><td><strong>Task Queue</strong></td><td>Celery 5.4 + Flower</td><td>Async pipeline workers, beat scheduler, learning loop</td></tr>
+        <tr><td><strong>AI / LLM</strong></td><td><span class="badge badge-purple">KubeAI</span> (Anthropic)</td><td>AI node scoring (AI_ADAPTIVE), NL → proposals</td></tr>
+        <tr><td><strong>Validation</strong></td><td>Pydantic v2</td><td>Request/response schemas, settings management</td></tr>
+        <tr><td><strong>Frontend</strong></td><td>React 18 + Vite + TypeScript</td><td>Professional GUI (this app)</td></tr>
+        <tr><td><strong>Containers</strong></td><td>Docker Compose</td><td>All 9 services in one command</td></tr>
+        <tr><td><strong>HMAC Signing</strong></td><td>hashlib + hmac (stdlib)</td><td>Webhook payload integrity verification</td></tr>
+        <tr><td><strong>Geo Math</strong></td><td>haversine (stdlib math)</td><td>Sourcing distance calculations</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ══ POSTGRESQL ══ -->
+<section id="postgres">
+  <h2><span class="section-num">3</span> PostgreSQL Models</h2>
+
+  <h3>fulfillment_nodes</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>UUID PK</td><td>Node identifier</td></tr>
+        <tr><td><code>code</code></td><td>VARCHAR(50) UNIQUE</td><td>Short code e.g. <code>DC-EAST</code></td></tr>
+        <tr><td><code>name</code></td><td>VARCHAR(200)</td><td>Display name</td></tr>
+        <tr><td><code>node_type</code></td><td>ENUM</td><td><code>DISTRIBUTION_CENTER</code>, <code>RETAIL_STORE</code>, <code>DARK_STORE</code>, <code>WAREHOUSE</code>, <code>PICKUP_POINT</code></td></tr>
+        <tr><td><code>status</code></td><td>ENUM</td><td><code>ACTIVE</code>, <code>INACTIVE</code>, <code>MAINTENANCE</code>, <code>CLOSED</code></td></tr>
+        <tr><td><code>latitude / longitude</code></td><td>FLOAT</td><td>Geographic coordinates for distance sourcing</td></tr>
+        <tr><td><code>can_ship / pickup / curbside / same_day</code></td><td>BOOL</td><td>Capability flags for fulfillment type matching</td></tr>
+        <tr><td><code>daily_order_capacity</code></td><td>INT</td><td>Max orders per day</td></tr>
+        <tr><td><code>current_daily_orders</code></td><td>INT</td><td>Reset to 0 at midnight by Celery beat</td></tr>
+        <tr><td><code>shipping_cost_multiplier</code></td><td>FLOAT</td><td>Relative cost weight for sourcing score</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>orders</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>UUID PK</td><td>Order identifier</td></tr>
+        <tr><td><code>order_number</code></td><td>VARCHAR(50) UNIQUE</td><td>Human-readable e.g. <code>ORD-20240101-ABC123</code></td></tr>
+        <tr><td><code>channel</code></td><td>ENUM</td><td><code>WEB</code>, <code>MOBILE</code>, <code>POS</code>, <code>API</code>, <code>MARKETPLACE</code></td></tr>
+        <tr><td><code>fulfillment_type</code></td><td>ENUM</td><td><code>SHIP_TO_HOME</code>, <code>STORE_PICKUP</code>, <code>SHIP_FROM_STORE</code>, <code>CURBSIDE_PICKUP</code>, <code>SAME_DAY_DELIVERY</code></td></tr>
+        <tr><td><code>status</code></td><td>ENUM</td><td>15-state machine (see Fulfillment Pipeline)</td></tr>
+        <tr><td><code>total_amount</code></td><td>NUMERIC(12,2)</td><td>Order total in order currency</td></tr>
+        <tr><td><code>shipping_latitude / longitude</code></td><td>FLOAT</td><td>Customer location for haversine sourcing</td></tr>
+        <tr><td><code>pickup_node_id</code></td><td>UUID FK</td><td>For BOPIS / curbside orders</td></tr>
+        <tr><td><code>sourcing_rule_id</code></td><td>UUID FK</td><td>Which sourcing rule was applied</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>inventory_items</h3>
+  <p>Per-node, per-SKU stock levels with three counters:</p>
+  <ul>
+    <li><code>quantity_on_hand</code> — physical stock in the warehouse</li>
+    <li><code>quantity_reserved</code> — soft-reserved by active allocations</li>
+    <li><code>quantity_available</code> = on_hand − reserved (what sourcing can use)</li>
+  </ul>
+
+  <h3>fulfillment_allocations</h3>
+  <p>Bridges an order item to a specific fulfillment node. One order can have multiple allocations (split fulfillment). Tracks the full picking → packing → shipping timeline with timestamps for each transition.</p>
+
+  <h3>sourcing_rules</h3>
+  <p>Configurable rules evaluated in <code>priority</code> order (ascending). Each rule has:</p>
+  <ul>
+    <li><code>conditions</code> — JSON array of <code>{field, operator, value}</code> tuples</li>
+    <li><code>strategy</code> — <code>DISTANCE_OPTIMAL</code>, <code>COST_OPTIMAL</code>, <code>STORE_NEAREST</code>, <code>INVENTORY_RESERVATION</code>, <code>LEAST_COST_SPLIT</code>, <code>AI_ADAPTIVE</code>, or <code>AI_HYBRID</code></li>
+    <li><code>allowed_node_types</code>, <code>required_capabilities</code> — node pre-filter</li>
+    <li><code>max_split_nodes</code>, <code>cost_weight</code>, <code>distance_weight</code> — algorithm parameters</li>
+  </ul>
+
+  <h3>Control-Plane Models (org_models.py)</h3>
+  <p>These four tables live exclusively in <code>oms_db</code> — the shared control-plane database — and are never replicated into tenant databases.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Model</th><th>Table</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>Organization</code></td><td><code>organizations</code></td><td>Top-level tenant grouping. Has a unique <code>slug</code> used as the namespace prefix for all database names (<code>oms_{slug}_{env}</code>). Instantaneous to create — no database provisioned at this stage.</td></tr>
+        <tr><td><code>Environment</code></td><td><code>environments</code></td><td>An isolated data silo within an org. Stores <code>db_name</code>, <code>mongo_events_db</code>, <code>mongo_ai_db</code>, <code>es_index_prefix</code>, and optional per-cluster <code>pg_host/port/user/password</code> overrides. <code>status</code>: <code>PROVISIONING → ACTIVE → SUSPENDED → ARCHIVED</code>.</td></tr>
+        <tr><td><code>UserOrganizationRole</code></td><td><code>user_organization_roles</code></td><td>Links a user to an org with a role: <code>ORG_OWNER</code>, <code>ORG_ADMIN</code>, <code>ORG_MEMBER</code>. One row per (user, org) pair — enforced by <code>uq_user_org</code> unique constraint.</td></tr>
+        <tr><td><code>UserEnvironmentRole</code></td><td><code>user_environment_roles</code></td><td>Links a user to a specific environment with a role: <code>OWNER</code>, <code>ADMIN</code>, <code>MEMBER</code>, <code>VIEWER</code>. One row per (user, env) pair — enforced by <code>uq_user_env</code>.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h4>environments table — key columns</h4>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>UUID PK</td><td>Sent as <code>X-OMS-Environment</code> header</td></tr>
+        <tr><td><code>organization_id</code></td><td>UUID FK</td><td>Parent org, CASCADE DELETE</td></tr>
+        <tr><td><code>slug</code></td><td>VARCHAR(80)</td><td>Unique within org (<code>uq_env_org_slug</code>)</td></tr>
+        <tr><td><code>env_type</code></td><td>ENUM</td><td><code>DEV</code> · <code>QA</code> · <code>STAGING</code> · <code>PROD</code></td></tr>
+        <tr><td><code>status</code></td><td>ENUM</td><td><code>PROVISIONING</code> · <code>ACTIVE</code> · <code>SUSPENDED</code> · <code>ARCHIVED</code></td></tr>
+        <tr><td><code>db_name</code></td><td>VARCHAR UNIQUE</td><td>PostgreSQL database name, e.g. <code>oms_acme_prod</code></td></tr>
+        <tr><td><code>mongo_events_db</code></td><td>VARCHAR</td><td>e.g. <code>oms_events_acme_prod</code></td></tr>
+        <tr><td><code>mongo_ai_db</code></td><td>VARCHAR</td><td>e.g. <code>oms_ai_acme_prod</code></td></tr>
+        <tr><td><code>es_index_prefix</code></td><td>VARCHAR</td><td>e.g. <code>acme_prod</code></td></tr>
+        <tr><td><code>pg_host / pg_port / pg_user / pg_password</code></td><td>VARCHAR NULL</td><td>Per-cluster overrides; NULL = use same host as control plane</td></tr>
+        <tr><td><code>base_url</code></td><td>VARCHAR NULL</td><td>Deployment URL of the tenant pod; used by the frontend switcher for cross-origin redirects</td></tr>
+        <tr><td><code>is_default</code></td><td>BOOL</td><td>Fallback when no <code>X-OMS-Environment</code> header is sent (one per org)</td></tr>
+        <tr><td><code>provisioned_at</code></td><td>TIMESTAMP NULL</td><td>Set when database creation completes; NULL while PROVISIONING</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>AI Models (ai_models.py)</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Model</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>ai_proposals</code></td><td>All AI-proposed changes. Lifecycle: <code>PENDING → APPROVED → APPLIED</code> (or <code>REJECTED</code> / <code>ROLLED_BACK</code>). Stores <code>proposal_data</code> JSONB and <code>rollback_data</code> JSONB. Nothing applied without human approval.</td></tr>
+        <tr><td><code>ai_experiments</code></td><td>A/B tests between two sourcing strategies. Traffic split via <code>traffic_split_pct</code> (1–50%). Stores per-arm <code>results</code> JSONB and <code>winner</code> when concluded.</td></tr>
+        <tr><td><code>custom_attribute_definitions</code></td><td>Dynamic schema extensions for orders/products/nodes — uses existing <code>metadata_</code> JSONB columns. No DDL required.</td></tr>
+        <tr><td><code>ui_widgets</code></td><td>JSON-configured dashboard widgets. <code>widget_type</code>: metric_card, time_series, bar_chart, table, distribution.</td></tr>
+        <tr><td><code>sourcing_outcome_labels</code></td><td>PostgreSQL mirror of labeled MongoDB <code>sourcing_outcomes</code> docs for fast analytical queries.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Other Models</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Model</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>order_items</code></td><td>Line items linked to an order. Tracks <code>quantity_fulfilled</code> as allocations are shipped.</td></tr>
+        <tr><td><code>shipments</code></td><td>One per allocation. Carrier, tracking number, label URL, JSON array of tracking events.</td></tr>
+        <tr><td><code>inventory_adjustments</code></td><td>Immutable audit log of every stock change with before/after quantities.</td></tr>
+        <tr><td><code>webhook_endpoints</code></td><td>Registered webhook receivers with HMAC secret.</td></tr>
+        <tr><td><code>webhook_events</code></td><td>Persistent delivery records with retry state machine.</td></tr>
+        <tr><td><code>connectors</code></td><td>External platform integrations (Shopify, etc.) with masked config and counters.</td></tr>
+        <tr><td><code>connector_events</code></td><td>Per-connector inbound/outbound event log with payload and response snapshots.</td></tr>
+        <tr><td><code>connector_inventory_mappings</code></td><td>Maps an OMS <code>InventoryItem</code> (by SKU + connector) to platform-specific IDs needed for inventory sync: <code>shopify_inventory_item_id</code>, <code>shopify_location_id</code>, <code>amazon_asin</code>, <code>amazon_fnsku</code>, etc.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ══ MONGODB ══ -->
+<section id="mongodb">
+  <h2><span class="section-num">4</span> MongoDB Collections</h2>
+
+  <div class="callout">
+    <p>MongoDB is split into <strong>two databases</strong> to isolate transactional read latency from analytical write load. Config keys: <code>MONGODB_DB=oms_events</code> and <code>MONGODB_AI_DB=oms_ai_learning</code>. Both use the same MongoDB instance/container; a separate container is easy to provision later by pointing <code>MONGODB_AI_DB</code> to a different connection string.</p>
+  </div>
+
+  <h3>Database: <code>oms_events</code> — transactional / operational</h3>
+  <p>Latency-sensitive collections written on the hot request path. Fast point lookups by <code>order_id</code>.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Collection</th><th>Purpose</th><th>TTL</th><th>Key Indexes</th></tr></thead>
+      <tbody>
+        <tr><td><code>order_events</code></td><td>Append-only audit trail for every order state change</td><td>—</td><td><code>(order_id, timestamp)</code>, <code>event_type</code></td></tr>
+        <tr><td><code>error_events</code></td><td>Raw error/exception records from all services</td><td><strong>30 days</strong></td><td><code>timestamp</code>, <code>fingerprint</code>, <code>source_service</code>, <code>level</code></td></tr>
+        <tr><td><code>error_issues</code></td><td>Aggregated issues grouped by fingerprint (one doc per unique error type)</td><td>—</td><td><code>fingerprint</code> (unique), <code>status+last_seen</code></td></tr>
+        <tr><td><code>product_catalog</code></td><td>Rich product data: images, attributes, descriptions</td><td>—</td><td>Text index on <code>name + description</code></td></tr>
+        <tr><td><code>webhook_deliveries</code></td><td>Per-event delivery attempt history</td><td>—</td><td><code>event_id</code>, <code>status</code></td></tr>
+        <tr><td><code>notifications</code></td><td>Email/SMS notification log</td><td>—</td><td><code>order_id</code>, <code>created_at</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Database: <code>oms_ai_learning</code> — analytical / AI pipeline</h3>
+  <p>High-volume write collections used by the AI learning loop. Aggregation-heavy reads run here without contending with order audit lookups. TTLs bound storage growth automatically.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Collection</th><th>Purpose</th><th>TTL</th><th>Key Indexes</th></tr></thead>
+      <tbody>
+        <tr><td><code>sourcing_outcomes</code></td><td>Per-allocation sourcing decision snapshot + delivery outcome labels. Written by sourcing worker at order time; enriched by carrier worker on SHIPPED/DELIVERED; labeled with <code>outcome_score</code> hourly by the learning worker.</td><td><strong>90 days</strong> — raw decisions expire; aggregated patterns retain the learnings</td><td><code>(cluster_key, outcome_score)</code>, <code>(node_id, sourced_at)</code>, <code>(experiment_id, strategy_used)</code></td></tr>
+        <tr><td><code>sourcing_patterns</code></td><td>Aggregated node performance per order-feature cluster (<code>channel|region|amount|type</code>). Upserted nightly by <code>discover_patterns</code>. Feeds the AI sourcing prompt and the Patterns tab in AI Architect.</td><td><strong>180 days</strong> — stale clusters expire; nightly run re-creates active ones</td><td><code>cluster_key</code> (unique), <code>sample_count</code></td></tr>
+        <tr><td><code>node_performance_metrics</code></td><td>Rolling 7-day and 30-day stats per node: avg outcome score, avg delivery hours, backorder rate %, return rate %. One doc per <code>(node_id, period_days)</code> pair, replaced on each run. Feeds the AI sourcing prompt and the Node Performance tab.</td><td>—</td><td><code>(node_id, period_days)</code> (unique)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <p>All MongoDB writes are non-blocking. The Motor async driver ensures no latency impact on the main request path. AI learning writes are additionally isolated in a separate database so nightly aggregations never compete with order audit reads for buffer pool or I/O.</p>
+  </div>
+</section>
+
+<!-- ══ REDIS ══ -->
+<section id="redis">
+  <h2><span class="section-num">5</span> Redis Key Schema</h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Key Pattern</th><th>Type</th><th>TTL</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>oms:version</code></td><td>STRING</td><td>24h</td><td>Current application version</td></tr>
+        <tr><td><code>oms:stats</code></td><td>HASH</td><td>—</td><td>Aggregate counters (orders, revenue)</td></tr>
+        <tr><td><code>oms:active_strategies</code></td><td>STRING</td><td>1h</td><td>Cached sourcing strategy list</td></tr>
+        <tr><td><code>env:{env_uuid}</code></td><td>STRING (JSON)</td><td><strong>60s</strong></td><td>Cached <code>Environment</code> record for the middleware hot path. Written on first miss from control DB. Evicted on environment update or status change. Prevents a control-plane DB query on every API request in a high-throughput environment.</td></tr>
+        <tr><td><code>celery:*</code></td><td>Various</td><td>—</td><td>Celery broker/result state (DB 1 + DB 2)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Redis is used as the Celery broker (DB 1) and result backend (DB 2), keeping pipeline task state separate from application cache (DB 0). The <code>env:{id}</code> cache key is the critical performance optimization for the multi-tenant middleware — without it, every API request would require a synchronous lookup into <code>oms_db</code> to resolve the active environment.</p>
+</section>
+
+<!-- ══ ELASTICSEARCH ══ -->
+<section id="elasticsearch">
+  <h2><span class="section-num">6</span> Elasticsearch Indexes</h2>
+
+  <h3>oms_orders</h3>
+  <p>Optimized for order search. Documents are indexed on order creation and updated on every status transition.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>order_number</code></td><td>keyword</td><td>Exact match</td></tr>
+        <tr><td><code>customer_name</code></td><td>text</td><td>Full-text, fuzzy</td></tr>
+        <tr><td><code>customer_email</code></td><td>keyword</td><td>Exact match</td></tr>
+        <tr><td><code>channel</code>, <code>status</code>, <code>fulfillment_type</code></td><td>keyword</td><td>Filter / aggregation</td></tr>
+        <tr><td><code>total_amount</code></td><td>float</td><td>Range filter</td></tr>
+        <tr><td><code>created_at</code></td><td>date</td><td>Date range filter, sort</td></tr>
+        <tr><td><code>tags</code></td><td>keyword[]</td><td>Multi-value filter</td></tr>
+        <tr><td><code>line_items</code></td><td>nested</td><td>Nested SKU / product_name search</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>oms_products</h3>
+  <p>Product catalog search backed by MongoDB documents synced to Elasticsearch.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>sku</code></td><td>keyword</td><td>Exact match</td></tr>
+        <tr><td><code>name</code></td><td>text</td><td>Full-text search</td></tr>
+        <tr><td><code>description</code></td><td>text</td><td>Full-text search</td></tr>
+        <tr><td><code>category</code></td><td>keyword</td><td>Filter</td></tr>
+        <tr><td><code>price</code></td><td>float</td><td>Range filter</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ══ API ORDERS ══ -->
+<section id="api-orders">
+  <h2><span class="section-num">7</span> Orders API <code style="font-size:14px">/orders</code></h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/orders/</code></td><td>Create new order — triggers sourcing pipeline</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/orders/</code></td><td>List orders with filters (status, channel, date range, email)</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/orders/{order_id}</code></td><td>Get single order with all relationships</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/orders/number/{order_number}</code></td><td>Get order by human-readable order number</td></tr>
+        <tr><td><span class="method method-patch">PATCH</span></td><td><code>/orders/{order_id}/status</code></td><td>Transition order status (with validation)</td></tr>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/orders/{order_id}/cancel</code></td><td>Cancel an order (notifies customer + fires webhook)</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/orders/{order_id}/events</code></td><td>Get MongoDB audit trail events</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Create Order — Request Body</h3>
+  <pre data-lang="json">{
+  "channel": "WEB",
+  "fulfillment_type": "SHIP_TO_HOME",
+  "customer_email": "alice@example.com",
+  "customer_name": "Alice Smith",
+  "line_items": [
+    {
+      "sku": "SKU-WIDGET-A",
+      "product_name": "Premium Widget A",
+      "quantity": 2,
+      "unit_price": 29.99
+    }
+  ],
+  "shipping_address": {
+    "address1": "123 Main St",
+    "city": "New York",
+    "state": "NY",
+    "postal_code": "10001",
+    "latitude": 40.7484,
+    "longitude": -73.9967
+  }
+}</pre>
+
+  <h3>Order Status Values</h3>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 16px">
+    <span class="badge badge-gray">PENDING</span>
+    <span class="badge badge-blue">CONFIRMED</span>
+    <span class="badge badge-yellow">SOURCING</span>
+    <span class="badge badge-yellow">SOURCED</span>
+    <span class="badge badge-orange">PICKING</span>
+    <span class="badge badge-orange">PACKING</span>
+    <span class="badge badge-purple">READY_TO_SHIP</span>
+    <span class="badge badge-blue">SHIPPED</span>
+    <span class="badge badge-blue">OUT_FOR_DELIVERY</span>
+    <span class="badge badge-green">DELIVERED</span>
+    <span class="badge badge-green">READY_FOR_PICKUP</span>
+    <span class="badge badge-green">PICKED_UP</span>
+    <span class="badge badge-red">CANCELLED</span>
+    <span class="badge badge-orange">RETURNED</span>
+    <span class="badge badge-purple">REFUNDED</span>
+  </div>
+</section>
+
+<!-- ══ API INVENTORY ══ -->
+<section id="api-inventory">
+  <h2><span class="section-num">8</span> Inventory API <code style="font-size:14px">/inventory</code></h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/inventory/</code></td><td>Create inventory item for a node/SKU</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/inventory/</code></td><td>List inventory (filter by node, SKU, low-stock)</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/inventory/sku/{sku}</code></td><td>All node stock for a specific SKU</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/inventory/products</code></td><td>Aggregated product list grouped by SKU — totals across all nodes (search, node_id, low_stock_only filters)</td></tr>
+        <tr><td><span class="method method-patch">PATCH</span></td><td><code>/inventory/products/{sku}</code></td><td>Update product-level attributes (name, cost, weight, reorder point) for all nodes at once</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/inventory/{item_id}</code></td><td>Single inventory item with history</td></tr>
+        <tr><td><span class="method method-patch">PATCH</span></td><td><code>/inventory/{item_id}</code></td><td>Update item metadata (reorder point, cost, etc.)</td></tr>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/inventory/{item_id}/adjust</code></td><td>Apply stock adjustment — reason must be a valid enum value (see below)</td></tr>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/inventory/check-availability</code></td><td>Bulk availability check across all nodes</td></tr>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/inventory/transfer</code></td><td>Transfer stock between nodes</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Adjustment Reason Codes</h3>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 16px">
+    <span class="badge badge-green">RECEIVED</span>
+    <span class="badge badge-blue">SOLD</span>
+    <span class="badge badge-orange">RETURNED</span>
+    <span class="badge badge-red">DAMAGED</span>
+    <span class="badge badge-yellow">CYCLE_COUNT</span>
+    <span class="badge badge-purple">TRANSFER_IN</span>
+    <span class="badge badge-purple">TRANSFER_OUT</span>
+    <span class="badge badge-gray">CORRECTION</span>
+  </div>
+
+  <h3>Adjust Stock Example</h3>
+  <pre data-lang="json">{
+  "quantity_delta": 50,
+  "reason": "RECEIVED",
+  "notes": "PO-2024-0042 inbound shipment",
+  "created_by": "ops_user"
+}</pre>
+</section>
+
+<!-- ══ API NODES ══ -->
+<section id="api-nodes">
+  <h2><span class="section-num">9</span> Fulfillment Nodes API <code style="font-size:14px">/nodes</code></h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/nodes/</code></td><td>Register a new DC or store</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/nodes/</code></td><td>List nodes (filter by type, status, capabilities)</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/nodes/{node_id}</code></td><td>Get node details with current capacity</td></tr>
+        <tr><td><span class="method method-patch">PATCH</span></td><td><code>/nodes/{node_id}</code></td><td>Update node configuration or status</td></tr>
+        <tr><td><span class="method method-delete">DELETE</span></td><td><code>/nodes/{node_id}</code></td><td>Deactivate node (soft delete, sets status=INACTIVE)</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/nodes/{node_id}/capacity</code></td><td>Get daily capacity utilization percentage</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ══ API SOURCING ══ -->
+<section id="api-sourcing">
+  <h2><span class="section-num">10</span> Sourcing Rules API <code style="font-size:14px">/sourcing-rules</code></h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/sourcing-rules/</code></td><td>Create new sourcing rule</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/sourcing-rules/</code></td><td>List rules sorted by priority (ascending)</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/sourcing-rules/{rule_id}</code></td><td>Get rule with full condition/strategy detail</td></tr>
+        <tr><td><span class="method method-patch">PATCH</span></td><td><code>/sourcing-rules/{rule_id}</code></td><td>Update rule parameters</td></tr>
+        <tr><td><span class="method method-delete">DELETE</span></td><td><code>/sourcing-rules/{rule_id}</code></td><td>Delete rule permanently</td></tr>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/sourcing-rules/{rule_id}/toggle</code></td><td>Enable / disable rule without deleting</td></tr>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/sourcing-rules/evaluate</code></td><td>Manually run sourcing engine for a test order</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ══ API SEARCH ══ -->
+<section id="api-search">
+  <h2><span class="section-num">11</span> Search API <code style="font-size:14px">/search</code></h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/search/orders</code></td><td>Full-text order search with filters and pagination</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/search/orders</code></td><td>GET-style order search (query params)</td></tr>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/search/products</code></td><td>Full-text product catalog search</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Supports: fuzzy matching, multi-field search, date/amount range filters, pagination, sort order. Results include a <code>score</code> field for relevance ranking.</p>
+
+  <h3>Search Request Example</h3>
+  <pre data-lang="json">{
+  "query": "John Doe",
+  "status": "DELIVERED",
+  "from_date": "2024-01-01",
+  "to_date": "2024-12-31",
+  "min_amount": 50,
+  "page": 1,
+  "page_size": 20,
+  "sort_by": "created_at",
+  "sort_order": "desc"
+}</pre>
+</section>
+
+<!-- ══ API ANALYTICS ══ -->
+<section id="api-analytics">
+  <h2><span class="section-num">12</span> Analytics API <code style="font-size:14px">/analytics</code></h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/analytics/dashboard</code></td><td>Full KPI dashboard: revenue, order counts, breakdowns, top nodes, alerts</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/analytics/orders/volume</code></td><td>Daily order volume and revenue over N days (default 30)</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/analytics/inventory/summary</code></td><td>Aggregate inventory health: total SKUs, on-hand, available, low stock count</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Dashboard Response Shape</h3>
+  <pre data-lang="json">{
+  "period_start": "2024-01-01",
+  "period_end": "2024-12-31",
+  "total_orders": 1247,
+  "total_revenue": 184293.50,
+  "avg_order_value": 147.79,
+  "orders_by_status": { "DELIVERED": 891, "SHIPPED": 124, ... },
+  "orders_by_channel": [
+    { "channel": "WEB", "count": 623, "total_revenue": 98241.00, "percentage": 49.9 }
+  ],
+  "top_nodes": [
+    { "node_id": "...", "node_name": "DC-EAST", "total_allocations": 412, "capacity_utilization": 0.61 }
+  ],
+  "inventory_alerts": [
+    { "sku": "SKU-GADGET-X", "node": "STR-MIA-01", "available": 2, "reorder_point": 10 }
+  ]
+}</pre>
+</section>
+
+<!-- ══ API WEBHOOKS ══ -->
+<section id="api-webhooks">
+  <h2><span class="section-num">13</span> Webhooks API <code style="font-size:14px">/webhooks</code></h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/webhooks/endpoints</code></td><td>Register webhook endpoint with secret + event types</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/webhooks/endpoints</code></td><td>List all registered endpoints</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/webhooks/endpoints/{id}</code></td><td>Get endpoint details</td></tr>
+        <tr><td><span class="method method-patch">PATCH</span></td><td><code>/webhooks/endpoints/{id}</code></td><td>Update URL, secret, or subscribed events</td></tr>
+        <tr><td><span class="method method-delete">DELETE</span></td><td><code>/webhooks/endpoints/{id}</code></td><td>Delete endpoint permanently</td></tr>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/webhooks/endpoints/{id}/test</code></td><td>Send a test <code>order.test</code> event</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/webhooks/events</code></td><td>List all delivery events with status</td></tr>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/webhooks/events/{id}/retry</code></td><td>Manually retry a failed delivery</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ══ CONNECTORS API ══ -->
+<section id="api-connectors">
+  <h2><span class="section-num">14</span> Connectors API <code style="font-size:14px">/connectors</code></h2>
+  <p>Superadmin-only CRUD for managing platform integrations. The inbound webhook receiver is public (authenticated via HMAC) — all other endpoints require a superadmin JWT.</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/connectors/</code></td><td>Superadmin</td><td>Create a new connector</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/connectors/</code></td><td>Superadmin</td><td>List connectors (filter by status)</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/connectors/{id}</code></td><td>Superadmin</td><td>Get single connector with masked config</td></tr>
+        <tr><td><span class="method method-patch">PATCH</span></td><td><code>/connectors/{id}</code></td><td>Superadmin</td><td>Update name, direction, or config</td></tr>
+        <tr><td><span class="method method-delete">DELETE</span></td><td><code>/connectors/{id}</code></td><td>Superadmin</td><td>Delete connector and all events</td></tr>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/connectors/{id}/toggle</code></td><td>Superadmin</td><td>Enable / disable connector</td></tr>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/connectors/{id}/test</code></td><td>Superadmin</td><td>Test live API connection to the platform</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/connectors/{id}/events</code></td><td>Superadmin</td><td>Paginated inbound / outbound event log</td></tr>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/connectors/generate-secret</code></td><td>Superadmin</td><td>Generate a cryptographically secure webhook secret</td></tr>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/connectors/{id}/webhook</code></td><td><strong>Public</strong></td><td>HMAC-validated inbound webhook receiver</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Create Connector Example</h3>
+  <pre data-lang="bash">curl -X POST http://localhost:8001/connectors/ \
+  -H "Authorization: Bearer {superadmin_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My Shopify Store",
+    "connector_type": "SHOPIFY",
+    "direction": "BIDIRECTIONAL",
+    "config": {
+      "shop_url": "mystore.myshopify.com",
+      "access_token": "shpat_xxxxxxxxxxxx",
+      "webhook_secret": "my-hmac-secret",
+      "api_version": "2024-01"
+    }
+  }'</pre>
+
+  <p><strong>Note:</strong> Sensitive config keys (<code>access_token</code>, <code>webhook_secret</code>, <code>api_key</code>, etc.) are always masked as <code>***</code> in all API responses.</p>
+</section>
+
+<!-- ══ AI ARCHITECT API ══ -->
+<section id="api-architect">
+  <h2><span class="section-num">15</span> AI Architect <code style="font-size:14px">/architect</code></h2>
+
+  <p>The AI Architect is a superadmin-only control center that closes the loop between order data and sourcing intelligence. It is the place where the system observes its own performance, proposes improvements, and waits for a human to say yes before changing anything.</p>
+
+  <div class="callout">
+    <p><strong>Access:</strong> Navigate to <strong>AI Architect</strong> in the sidebar (visible to superadmin users only). The page has four tabs: <em>Proposals</em>, <em>Patterns</em>, <em>Experiments</em>, and <em>Node Performance</em>.</p>
+  </div>
+
+  <!-- ─ WHAT IS IT ─ -->
+  <h3>What does the AI Architect do?</h3>
+  <p>Normally, sourcing rules are manually written by admins — you define conditions, pick a strategy, and the engine applies it. The AI Architect adds a self-improving layer on top:</p>
+  <ol>
+    <li><strong>It watches every sourcing decision</strong> — every order allocation writes a record to MongoDB (<code>sourcing_outcomes</code>) capturing which node was chosen, at what cost, via which strategy.</li>
+    <li><strong>It labels outcomes once the order is delivered</strong> — after delivery, the learning worker scores the decision: was it fast? was the cost accurate? did the item backorder or get returned?</li>
+    <li><strong>It discovers patterns nightly</strong> — orders are grouped by channel, region, order-size bucket, and fulfillment type. Within each group, it ranks nodes by their historical outcome scores and compares AI-sourced orders against rule-based ones.</li>
+    <li><strong>It proposes improvements</strong> — when a pattern has enough data and AI consistently outperforms the baseline by ≥10%, the system drafts a new sourcing rule proposal and queues it for your review.</li>
+    <li><strong>You approve or reject it</strong> — nothing changes in the system until you click Approve → Apply. Every action is reversible.</li>
+  </ol>
+
+  <!-- ─ PROPOSALS TAB ─ -->
+  <h3>Tab 1 — Proposals</h3>
+  <p>Proposals are the core output of the learning loop. They represent changes the AI wants to make, held in a queue until a human reviews them.</p>
+
+  <h4>Where do proposals come from?</h4>
+  <ul>
+    <li><strong>Pattern discovery</strong> (nightly) — when the <code>discover_patterns</code> Celery task finds a cluster where <code>AI_ADAPTIVE</code> achieves ≥10% better outcome scores than <code>DISTANCE_OPTIMAL</code> across ≥50 labeled orders, it auto-creates a pending sourcing rule proposal.</li>
+    <li><strong>Experiment completion</strong> (daily) — when an A/B experiment accumulates ≥50 labeled orders per arm and declares a winner, it creates a proposal to promote the winning strategy as a permanent rule.</li>
+  </ul>
+
+  <h4>Proposal lifecycle — step by step</h4>
+  <div class="pipeline">① System creates proposal (status: PENDING)
+   │
+   │  Admin reviews: title, confidence score, rationale, data evidence
+   │
+   ├──► Click REJECT (provide reason) ──► status: REJECTED   [no changes made]
+   │
+   └──► Click APPROVE ──► status: APPROVED
+           │
+           │  Admin is ready to apply the change
+           │
+           └──► Click APPLY ──► status: APPLIED   [change written to database]
+                    │
+                    │  Something went wrong / want to undo
+                    │
+                    └──► Click ROLLBACK ──► status: ROLLED_BACK   [change undone]</div>
+
+  <h4>Reading a proposal</h4>
+  <p>Each proposal card shows:</p>
+  <ul>
+    <li><strong>Title</strong> — plain-language summary, e.g. <em>"Use AI_ADAPTIVE for WEB|NY|100-250|SHIP_TO_HOME cluster (+14.2% better outcomes)"</em></li>
+    <li><strong>Confidence score</strong> — 0–1 bar combining improvement magnitude and sample size. A score of 0.8+ means strong evidence; below 0.5 means the data is suggestive but not conclusive.</li>
+    <li><strong>Rationale</strong> — the numbers behind the proposal: how many orders, what average outcome scores, which thresholds were met.</li>
+    <li><strong>Proposal data</strong> — the exact JSON that will be written to the database if you click Apply. For a sourcing rule proposal this includes: name, strategy, priority, and the auto-generated conditions derived from the cluster's dimensions.</li>
+    <li><strong>Status badge</strong> — PENDING (yellow), APPROVED (blue), APPLIED (green), REJECTED (red), ROLLED_BACK (gray).</li>
+  </ul>
+
+  <div class="callout success">
+    <p><strong>Safety guarantee — applied proposals are additive only:</strong><br>
+    A sourcing rule proposal inserts a new row into <code>sourcing_rules</code> with <code>is_active = False</code>. It does <em>not</em> activate itself. After applying, you still need to go to the Sourcing Rules page and manually toggle it active — giving you a final review point before live traffic is affected.</p>
+  </div>
+
+  <h4>Filtering proposals</h4>
+  <p>Use the status filter tabs (All / Pending / Approved / Applied / Rejected) at the top of the Proposals tab to focus on what needs action. "Pending" is the most important queue — these are waiting for your decision.</p>
+
+  <!-- ─ PATTERNS TAB ─ -->
+  <h3>Tab 2 — Patterns</h3>
+  <p>The Patterns tab shows you what the system has learned from historical orders, grouped by order characteristics. This is the raw intelligence that proposals are built from.</p>
+
+  <h4>What is a pattern cluster?</h4>
+  <p>A cluster is a combination of four dimensions that describes a type of order:</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Dimension</th><th>Example values</th><th>Where it comes from</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Channel</strong></td><td>WEB, MOBILE, POS, MARKETPLACE</td><td><code>order.channel</code></td></tr>
+        <tr><td><strong>Region</strong></td><td>NY, CA, TX, UNKNOWN</td><td><code>order.shipping_state</code></td></tr>
+        <tr><td><strong>Amount bucket</strong></td><td>0-50, 50-100, 100-250, 250-500, 500+</td><td>bucketed from <code>order.total_amount</code></td></tr>
+        <tr><td><strong>Fulfillment type</strong></td><td>SHIP_TO_HOME, STORE_PICKUP, SAME_DAY_DELIVERY</td><td><code>order.fulfillment_type</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Example cluster key: <code>WEB|NY|100-250|SHIP_TO_HOME</code> — web orders shipped to New York customers, order value $100–$250.</p>
+
+  <h4>Reading a pattern card</h4>
+  <ul>
+    <li><strong>Sample count</strong> — total number of labeled (delivered) orders in this cluster. More samples = more reliable data. Below 50 samples, treat it as indicative only.</li>
+    <li><strong>Node performance table</strong> — nodes ranked by <code>avg_outcome_score</code> for this cluster. Shows average delivery hours, average cost, and how many orders they've handled.</li>
+    <li><strong>Best node</strong> — highlighted at the top. This is the node the system would prefer for AI_ADAPTIVE sourcing within this cluster.</li>
+  </ul>
+
+  <p>Patterns are updated nightly. If a cluster has fewer than 10 samples, the AI sourcing advisor will not use it (fallback to DISTANCE_OPTIMAL instead).</p>
+
+  <h4>What to look for</h4>
+  <ul>
+    <li>Clusters with high sample counts (100+) and a clear top node are good candidates for a dedicated sourcing rule.</li>
+    <li>If the top node's avg_delivery_hours is significantly lower than others, AI_ADAPTIVE will reliably pick it.</li>
+    <li>Clusters where multiple nodes have similar scores indicate the order type is not sensitive to node choice — no specific rule needed.</li>
+  </ul>
+
+  <!-- ─ EXPERIMENTS TAB ─ -->
+  <h3>Tab 3 — Experiments</h3>
+  <p>Experiments let you A/B test two sourcing strategies on live traffic before committing to one. A percentage of orders are routed to the "treatment" strategy; the rest continue with the "control". The system measures outcomes on both arms and declares a winner when the data is conclusive.</p>
+
+  <h4>Creating an experiment</h4>
+  <p>Click <strong>New Experiment</strong> and fill in:</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Field</th><th>Description</th><th>Example</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Name</strong></td><td>Human-readable label for this test</td><td>AI Sourcing Test — West Coast</td></tr>
+        <tr><td><strong>Strategy A</strong> (control)</td><td>The current / baseline strategy</td><td>DISTANCE_OPTIMAL</td></tr>
+        <tr><td><strong>Strategy B</strong> (treatment)</td><td>The strategy you're testing</td><td>AI_ADAPTIVE</td></tr>
+        <tr><td><strong>Traffic split %</strong></td><td>Percentage of matching orders routed to strategy B. Range: 1–50%. Start conservatively (10%).</td><td>10</td></tr>
+        <tr><td><strong>Filter conditions</strong> (optional)</td><td>Restrict the experiment to specific order types. Available keys: <code>channel</code>, <code>fulfillment_type</code>, <code>region</code>, <code>amount_min</code>, <code>amount_max</code>. Leave empty to apply to all orders.</td><td><code>{"channel": "WEB", "region": "CA"}</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <p><strong>Tip — start small:</strong> Begin with 10% traffic split on a specific channel or region. Once the experiment accumulates enough samples and you see a clear winner, you can promote it to a sourcing rule. You don't need 50/50 splits — even 10% treatment vs 90% control gives you a valid comparison.</p>
+  </div>
+
+  <h4>How traffic splitting works</h4>
+  <p>When an order is sourced, the engine checks all running experiments whose filter conditions match the order. For the first matching experiment, it uses a random draw:</p>
+  <pre data-lang="python"># In sourcing_engine._check_experiment():
+if random.random() * 100 &lt; exp.traffic_split_pct:
+    strategy = exp.strategy_b   # treatment arm (e.g. AI_ADAPTIVE)
+else:
+    strategy = exp.strategy_a   # control arm (e.g. DISTANCE_OPTIMAL)</pre>
+  <p>The experiment ID is stamped on the <code>sourcing_outcomes</code> MongoDB document so the learning worker can attribute the outcome to the correct arm.</p>
+
+  <h4>Reading experiment results</h4>
+  <p>The results panel shows per-arm data once labeled outcomes are available (orders must reach DELIVERED status first):</p>
+  <ul>
+    <li><strong>Total orders</strong> — how many orders were routed to each arm (labeled + unlabeled).</li>
+    <li><strong>Labeled orders</strong> — orders that have reached DELIVERED and have an <code>outcome_score</code> computed.</li>
+    <li><strong>Avg outcome score</strong> — the primary metric. Higher is better. A difference of 0.05 or more (on a 0–1 scale) triggers automatic winner declaration.</li>
+    <li><strong>Avg delivery hours</strong> — secondary indicator. Lower is better.</li>
+    <li><strong>Backorder rate %</strong> — what % of orders in this arm had an item backordered.</li>
+  </ul>
+
+  <h4>When does an experiment end?</h4>
+  <p>The <code>evaluate_ai_experiments</code> Celery task runs daily at 03:00 UTC and checks every running experiment. It declares a winner when all three conditions are met:</p>
+  <ul>
+    <li>Each arm has ≥ 50 labeled outcomes</li>
+    <li>The absolute score difference between arms is ≥ 0.05</li>
+    <li>(If the difference is smaller, the experiment continues collecting data)</li>
+  </ul>
+  <p>When a winner is declared, the experiment status changes to COMPLETED and a new <strong>sourcing_experiment proposal</strong> is created, suggesting you promote the winning strategy as a permanent sourcing rule.</p>
+
+  <h4>Managing experiments</h4>
+  <ul>
+    <li><strong>Pause</strong> — stops new orders from being routed to this experiment. Existing labeled outcomes are preserved. Useful if you see an unexpected issue with the treatment arm.</li>
+    <li><strong>Resume</strong> — re-activates a paused experiment from where it left off.</li>
+  </ul>
+
+  <!-- ─ NODE PERFORMANCE TAB ─ -->
+  <h3>Tab 4 — Node Performance</h3>
+  <p>Shows rolling performance metrics for every fulfillment node, computed by the <code>update_node_performance</code> task every 4 hours.</p>
+  <ul>
+    <li><strong>7-day view</strong> — reflects recent changes in node behavior. Use this to spot a node that has degraded in the last week (rising backorder rate, slower delivery).</li>
+    <li><strong>30-day view</strong> — a more stable baseline. Use this to compare nodes over a meaningful time horizon.</li>
+  </ul>
+  <p>Each node card shows: orders fulfilled, avg outcome score, avg delivery hours, avg cost, backorder rate %, and return rate %. Nodes are ranked by avg outcome score descending. A node consistently in the top 3 by outcome score is a strong candidate to be the "best node" for matching order clusters.</p>
+
+  <!-- ─ HOW TO USE AI SOURCING ─ -->
+  <h3>Setting up AI sourcing on your orders</h3>
+  <p>Follow these steps to enable AI-powered sourcing for a subset of your orders:</p>
+
+  <h4>Option A — Direct rule (if you already trust the data)</h4>
+  <ol>
+    <li>Go to <strong>Sourcing Rules</strong> in the sidebar.</li>
+    <li>Create a new rule. Set <strong>Strategy</strong> to <code>AI_ADAPTIVE</code>.</li>
+    <li>Add conditions to restrict which orders this rule applies to — e.g. <code>channel = WEB</code> and <code>shipping_state = CA</code>.</li>
+    <li>Set a priority number lower than your other rules (lower number = higher priority, e.g. 10).</li>
+    <li>Toggle the rule <strong>Active</strong>.</li>
+    <li>From this point, matching orders will be scored by KubeAI using historical pattern data. If pattern data is insufficient, it automatically falls back to DISTANCE_OPTIMAL.</li>
+  </ol>
+
+  <h4>Option B — A/B experiment first (recommended for production)</h4>
+  <ol>
+    <li>Go to <strong>AI Architect → Experiments</strong> tab.</li>
+    <li>Create an experiment: Strategy A = <code>DISTANCE_OPTIMAL</code>, Strategy B = <code>AI_ADAPTIVE</code>, traffic split = 10%.</li>
+    <li>Add filter conditions to target a specific order segment (e.g. a single channel or region).</li>
+    <li>Wait until the experiment accumulates ≥50 labeled orders per arm (orders must be delivered). This typically takes 1–4 weeks depending on volume.</li>
+    <li>When the experiment completes, review the auto-generated proposal in the Proposals tab.</li>
+    <li>If the results are good, approve and apply the proposal. The new sourcing rule will be inserted (inactive); activate it in Sourcing Rules to go live.</li>
+  </ol>
+
+  <h4>Option C — Wait for automatic proposals</h4>
+  <p>If you use <code>AI_ADAPTIVE</code> on some orders (via a rule), the learning pipeline will observe outcomes over time. Nightly pattern discovery will automatically create proposals when a specific order cluster shows ≥10% improvement. You just need to review the Proposals tab periodically.</p>
+
+  <!-- ─ COMMON WORKFLOWS ─ -->
+  <h3>Common workflows</h3>
+
+  <h4>"I want to know if AI sourcing is working better than my current setup"</h4>
+  <ol>
+    <li>Go to <strong>AI Architect → Experiments</strong>, create an experiment comparing your current rule strategy against AI_ADAPTIVE.</li>
+    <li>Monitor the <strong>Node Performance</strong> tab to ensure AI-sourced orders are going to high-performing nodes.</li>
+    <li>After sufficient data is collected, check the experiment results. Compare avg_outcome_score, avg_delivery_hours, and backorder_rate between arms.</li>
+    <li>If AI_ADAPTIVE wins, approve and apply the auto-generated proposal.</li>
+  </ol>
+
+  <h4>"I received a proposal — should I approve it?"</h4>
+  <p>Look at three things:</p>
+  <ul>
+    <li><strong>Confidence score:</strong> Above 0.7 — generally safe to approve. Below 0.5 — let more data accumulate first (reject and wait).</li>
+    <li><strong>Sample count in rationale:</strong> More than 100 total samples with 20+ AI samples is a solid basis. If the AI arm had only 10 orders, the improvement could be noise.</li>
+    <li><strong>Improvement %:</strong> A 10–15% improvement is meaningful. 50%+ suggests something unusual — verify that the cluster key is sensible and not covering a very small order type.</li>
+  </ul>
+  <p>When you click <strong>Apply</strong>, the sourcing rule is created <em>inactive</em>. Review it in Sourcing Rules before activating it to see the exact conditions and confirm they look right.</p>
+
+  <h4>"I applied a proposal but the new sourcing rule isn't performing as expected"</h4>
+  <ol>
+    <li>Go to <strong>AI Architect → Proposals</strong>, find the applied proposal, and click <strong>Rollback</strong>. This deletes the inserted sourcing rule.</li>
+    <li>The original routing behavior resumes immediately (no restart needed).</li>
+    <li>Alternatively, go to Sourcing Rules and deactivate the rule rather than rolling back — this preserves it for future reference.</li>
+  </ol>
+
+  <h4>"How do I see what node was chosen for a specific order and why?"</h4>
+  <p>Go to <strong>Orders → [order] → Sourcing Decision</strong>. The decision trail shows: strategy used, rule matched, every candidate node with its distance/cost/score, and — for AI-sourced orders — the AI score and KubeAI's one-sentence reasoning per node.</p>
+
+  <!-- ─ API REFERENCE ─ -->
+  <h3>API Reference</h3>
+  <p>All endpoints require superadmin JWT. Base path: <code>/architect</code>.</p>
+
+  <h4>Proposals</h4>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/architect/proposals</code></td><td>List proposals — filter by <code>status</code> and <code>proposal_type</code>. Params: <code>limit</code> (max 200), <code>offset</code>.</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/architect/proposals/{id}</code></td><td>Full proposal detail including rationale, proposal_data JSON, and rollback_data.</td></tr>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/architect/proposals/{id}/approve</code></td><td>Transition PENDING → APPROVED. Records approver email. No DB changes yet.</td></tr>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/architect/proposals/{id}/reject</code></td><td>Transition to REJECTED. Body: <code>{"reason": "string"}</code>. Can reject PENDING or APPROVED.</td></tr>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/architect/proposals/{id}/apply</code></td><td>Execute the change (APPROVED only). Writes rollback_data before committing. Transitions to APPLIED.</td></tr>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/architect/proposals/{id}/rollback</code></td><td>Undo an APPLIED proposal using stored rollback_data. Transitions to ROLLED_BACK.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h4>Patterns &amp; Performance</h4>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/architect/patterns</code></td><td>Discovered clusters from MongoDB. Params: <code>channel</code> filter, <code>limit</code> (max 100). Sorted by sample_count desc.</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/architect/node-performance</code></td><td>Rolling node metrics. Params: <code>period_days=7</code> or <code>30</code>, <code>limit</code> (max 200).</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/architect/ai-sourcing/performance</code></td><td>Per-strategy outcome aggregates + AI vs baseline improvement %. Reads from <code>sourcing_outcomes</code>.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h4>Experiments</h4>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/architect/experiments</code></td><td>List experiments. Filter: <code>status=running|paused|completed</code>.</td></tr>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/architect/experiments</code></td><td>Create experiment. Body: <code>name, strategy_a, strategy_b, traffic_split_pct (1–50), filter_conditions</code>. Starts in RUNNING status immediately.</td></tr>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/architect/experiments/{id}/pause</code></td><td>Pause a running experiment. New orders stop being routed to it; existing outcomes are preserved.</td></tr>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/architect/experiments/{id}/resume</code></td><td>Resume a paused experiment.</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/architect/experiments/{id}/results</code></td><td>Live per-arm aggregation from MongoDB: outcome scores, delivery hours, backorder rates, labeled vs total order counts.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout success">
+    <p><strong>Strictly additive — the safety contract:</strong><br>
+    Applied proposals only ever INSERT new rows or ADD columns. They never UPDATE existing sourcing rules, never DELETE data, and never run DDL that could affect existing rows. Every apply stores <code>rollback_data</code> before committing, so any change can be undone in one click. Sourcing rules are always inserted with <code>is_active=False</code> — a final human gate before live traffic is affected.</p>
+  </div>
+</section>
+
+<!-- ══ SOURCING ENGINE ══ -->
+<section id="sourcing-engine">
+  <h2><span class="section-num">16</span> Sourcing Rules Engine</h2>
+  <p><strong>File:</strong> <code>app/services/sourcing_engine.py</code></p>
+  <p>The engine is the intelligence core. It runs every time an order needs to be sourced, evaluating prioritized rules to determine which fulfillment nodes should handle each SKU.</p>
+
+  <h3>Processing Pipeline</h3>
+  <div class="pipeline">Order
+  │
+  ▼
+RuleSelector ──► Find highest-priority SourcingRule where ALL conditions match
+  │
+  ▼
+NodeFilter ──► Apply: node type filter, capability filter, distance filter,
+  │            capacity filter, excluded node list
+  ▼
+InventoryLoader ──► Load quantity_available per (node, SKU) in one query
+  │
+  ▼
+NodeScorer ──► Compute normalized score per strategy
+  │
+  ▼
+AllocationDecider ──► Single-node or split allocation
+  │
+  ▼
+Persist ──► Write FulfillmentAllocation rows + reserve inventory</div>
+
+  <h3>Seven Sourcing Strategies</h3>
+  <div class="strategy-grid">
+    <div class="strategy-card">
+      <h4>DISTANCE_OPTIMAL</h4>
+      <span class="formula">score = distance_norm × 0.7 + inventory_norm × 0.3</span>
+      <p>Picks the node closest to the customer's shipping address. Uses Haversine great-circle distance. Falls back to split if no single node can fulfill all items.</p>
+    </div>
+    <div class="strategy-card">
+      <h4>COST_OPTIMAL</h4>
+      <span class="formula">score = cost_norm × cost_weight + distance_norm × distance_weight</span>
+      <p>Minimizes total estimated shipping cost (<code>base_rate + per_km × distance × node_multiplier</code>). Weights configurable per rule (default 50/50).</p>
+    </div>
+    <div class="strategy-card">
+      <h4>STORE_NEAREST</h4>
+      <span class="formula">score = distance_norm × 0.7 + inventory_norm × 0.3</span>
+      <p>Identical to DISTANCE_OPTIMAL but pre-restricts nodes to <code>RETAIL_STORE</code> and <code>DARK_STORE</code> types. Used for same-day delivery.</p>
+    </div>
+    <div class="strategy-card">
+      <h4>INVENTORY_RESERVATION</h4>
+      <span class="formula">score = inventory_norm × 0.8 + distance_norm × 0.2</span>
+      <p>Prefers nodes with deepest available stock — reduces chance of a reservation failing downstream. Useful for high-velocity SKUs.</p>
+    </div>
+  </div>
+  <div class="strategy-card" style="margin-top:12px">
+    <h4>LEAST_COST_SPLIT</h4>
+    <p>Greedy algorithm that assigns each SKU to the cheapest eligible node:</p>
+    <ol style="margin-top:8px;padding-left:20px;color:var(--text-muted)">
+      <li>Sort SKUs by fulfillability (hardest first = fewest nodes with stock)</li>
+      <li>For each SKU, iterate nodes in score order</li>
+      <li>Allocate as much as possible from each node until the full quantity is covered</li>
+      <li>Enforces <code>max_split_nodes</code> limit</li>
+    </ol>
+  </div>
+  <div class="strategy-grid" style="margin-top:12px">
+    <div class="strategy-card">
+      <h4>AI_ADAPTIVE</h4>
+      <span class="formula">final_score = 0.6 × ai_score + 0.4 × rule_score</span>
+      <p>Uses KubeAI to score candidate nodes based on historical pattern clusters and rolling 7-day performance data. Automatically falls back to <code>DISTANCE_OPTIMAL</code> if: pattern sample count &lt; 10, KubeAI API error, or max AI score &lt; 0.4.</p>
+    </div>
+    <div class="strategy-card">
+      <h4>AI_HYBRID</h4>
+      <span class="formula">final_score = 0.6 × ai_score + 0.4 × rule_score</span>
+      <p>Identical to <code>AI_ADAPTIVE</code> with the same blend formula. Intended for transitional rollouts where full AI trust is not yet established. Distinguishable in <code>sourcing_outcomes</code> by <code>strategy_used</code> field.</p>
+    </div>
+  </div>
+
+  <h3>Condition Operators</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Operator</th><th>Example</th></tr></thead>
+      <tbody>
+        <tr><td><code>EQUALS</code></td><td><code>channel == WEB</code></td></tr>
+        <tr><td><code>NOT_EQUALS</code></td><td><code>channel != MARKETPLACE</code></td></tr>
+        <tr><td><code>GREATER_THAN</code></td><td><code>total_amount > 200</code></td></tr>
+        <tr><td><code>LESS_THAN</code></td><td><code>total_amount &lt; 50</code></td></tr>
+        <tr><td><code>GREATER_THAN_OR_EQUAL</code></td><td><code>total_amount >= 100</code></td></tr>
+        <tr><td><code>LESS_THAN_OR_EQUAL</code></td><td><code>total_amount &lt;= 500</code></td></tr>
+        <tr><td><code>IN</code></td><td><code>shipping_state IN [NY, NJ, CT]</code></td></tr>
+        <tr><td><code>NOT_IN</code></td><td><code>channel NOT_IN [POS]</code></td></tr>
+        <tr><td><code>CONTAINS</code></td><td><code>customer_email CONTAINS example.com</code></td></tr>
+        <tr><td><code>STARTS_WITH</code></td><td><code>shipping_state STARTS_WITH N</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Haversine Distance Formula</h3>
+  <p>Used for all distance-based sourcing calculations. Accuracy: ±0.5% vs actual road distance.</p>
+  <pre data-lang="python">def haversine_km(lat1, lon1, lat2, lon2):
+    R = 6371.0  # Earth radius in km
+    φ1, φ2 = radians(lat1), radians(lat2)
+    Δφ = radians(lat2 - lat1)
+    Δλ = radians(lon2 - lon1)
+    a = sin(Δφ/2)**2 + cos(φ1)*cos(φ2)*sin(Δλ/2)**2
+    return R * 2 * asin(sqrt(a))</pre>
+</section>
+
+<!-- ══ AI ARCHITECTURE ══ -->
+<section id="ai-architecture">
+  <h2><span class="section-num">17</span> AI-Native Architecture — How It Works</h2>
+
+  <h3>The closed loop</h3>
+  <p>The OMS has a continuous feedback loop between order execution and sourcing intelligence. Every sourcing decision is an experiment. Every delivery is a data point. The system accumulates evidence, identifies patterns, and proposes improvements — all without touching any existing configuration until a human approves.</p>
+
+  <div class="pipeline">                    ┌─────────────────────────────────┐
+                    │        ORDERS FLOW IN           │
+                    └────────────────┬────────────────┘
+                                     │
+                                     ▼
+                    ┌─────────────────────────────────┐
+                    │   sourcing_engine.source_order  │
+                    │  ┌─────────────────────────┐   │
+                    │  │  experiment check        │   │
+                    │  │  (A/B traffic split)     │   │
+                    │  └──────────┬──────────────┘   │
+                    │             │ strategy selected  │
+                    │  ┌──────────▼──────────────┐   │
+                    │  │  AI_ADAPTIVE?            │   │
+                    │  │  → KubeAI scores nodes   │   │
+                    │  │  → fallback if needed    │   │
+                    │  └──────────┬──────────────┘   │
+                    │             │ allocations made   │
+                    └─────────────┼───────────────────┘
+                                  │
+                                  ▼
+                    ┌─────────────────────────────────┐
+                    │  sourcing_outcomes                │
+                    │  (MongoDB: oms_ai_learning)       │
+                    │  per-allocation snapshot:        │
+                    │  strategy, node, cost, AI score  │
+                    │  cluster_key, experiment_id      │
+                    └────────────────┬────────────────┘
+                                     │ (order delivered)
+                                     ▼
+                    ┌─────────────────────────────────┐
+                    │  label_sourcing_outcomes (hourly)│
+                    │  computes outcome_score 0–1      │
+                    │  based on delivery time, cost    │
+                    │  variance, backorders, returns   │
+                    └────────────────┬────────────────┘
+                                     │ (nightly 02:00 UTC)
+                                     ▼
+                    ┌─────────────────────────────────┐
+                    │  discover_patterns               │
+                    │  group by cluster_key × node_id  │
+                    │  rank nodes by avg outcome_score │
+                    │  compare AI vs DISTANCE_OPTIMAL  │
+                    │  → create AIProposal if AI wins  │
+                    └────────────────┬────────────────┘
+                                     │
+                                     ▼
+                    ┌─────────────────────────────────┐
+                    │  AI Architect UI (Proposals tab) │
+                    │  Admin: Approve → Apply          │
+                    │  New sourcing rule inserted      │
+                    │  (is_active=False until enabled) │
+                    └─────────────────────────────────┘</div>
+
+  <h3>Design principles</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Principle</th><th>What it means in practice</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Additive-only</strong></td><td>AI can only INSERT new rows or ADD nullable columns. It cannot UPDATE existing rules, DROP tables, or DELETE data. Every database write is audited.</td></tr>
+        <tr><td><strong>Human-gated</strong></td><td>Proposals sit in PENDING status indefinitely. Nothing is applied until a superadmin explicitly clicks Approve → Apply. The admin sees the full rationale and exact data to be written before confirming.</td></tr>
+        <tr><td><strong>Fallback-safe</strong></td><td>Every AI code path has a fallback. If KubeAI returns an error, times out, or gives low-confidence scores (max &lt; 0.4), the sourcing engine silently falls back to DISTANCE_OPTIMAL. Orders are never held waiting for the AI.</td></tr>
+        <tr><td><strong>Fully audited</strong></td><td>Every sourcing decision writes a <code>sourcing_outcomes</code> document. Every proposal records who approved it, who applied it, and stores rollback_data before the change is committed.</td></tr>
+        <tr><td><strong>Evidence-backed</strong></td><td>Proposals are only generated when statistical thresholds are met: ≥50 total samples, ≥10 AI-sourced samples, ≥10% improvement. Confidence scores reflect both margin of improvement and sample size.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Layer 1 — Intelligence data foundation</h3>
+  <p>The entire learning system is built on one collection: <code>sourcing_outcomes</code> in the <code>oms_ai_learning</code> MongoDB database. Every time the sourcing engine assigns an order to a node, it writes a document capturing a snapshot of the decision. This database is separate from <code>oms_events</code> so that nightly aggregation queries do not contend with transactional order audit reads.</p>
+
+  <h4>sourcing_outcomes document lifecycle</h4>
+  <div class="pipeline">Written at sourcing time (by sourcing worker):
+  order_id, allocation_id, node_id, node_name, sku
+  strategy_used, rule_applied
+  sourcing_score, predicted_cost, predicted_distance_miles
+  channel, region, amount_bucket, fulfillment_type, cluster_key
+  sourced_at, experiment_id (if any)
+  ai_score, ai_reasoning (if AI_ADAPTIVE was used)
+
+Updated at delivery (by carrier worker):
+  actual_delivery_hours ← set when order status → DELIVERED
+  actual_cost, cost_variance_pct
+
+Updated at backorder/return (by fulfillment/order workers):
+  was_backordered = true  ← set if item goes to backorder
+  was_returned = true     ← set if order is returned
+
+Labeled (by label_sourcing_outcomes task, hourly):
+  outcome_score = computed 0–1 quality score
+  labeled_at</div>
+
+  <h4>Outcome score formula</h4>
+  <pre data-lang="python">outcome_score = (
+    0.4 * delivery_score    # 1.0 if ≤24h | 0.5 if ≤48h | 0.2 if ≤72h | 0.0 if &gt;72h
+  + 0.3 * cost_score        # 1.0 if variance ≤5% | 0.7 if ≤15% | 0.3 if ≤25% | 0.0 if &gt;25%
+  + 0.2 * (1 - backordered) # 0.2 if no backorder, 0.0 if backordered
+  + 0.1 * (1 - returned)    # 0.1 if not returned, 0.0 if returned
+)</pre>
+  <p>A perfect sourcing decision (delivered in under 24 hours, cost within 5% of estimate, no backorder, no return) scores 1.0. A bad one (72+ hour delivery, 25%+ cost overrun, backorder, and return) scores 0.0.</p>
+
+  <h3>Layer 2 — AI sourcing engine</h3>
+  <p>When a sourcing rule uses <code>AI_ADAPTIVE</code> or <code>AI_HYBRID</code> strategy, the <code>AISourcingAdvisor</code> is invoked before the final node is chosen.</p>
+
+  <h4>What KubeAI receives</h4>
+  <p>The advisor builds a structured prompt containing:</p>
+  <ul>
+    <li><strong>Order context</strong> — channel, fulfillment type, customer region, order amount, SKU count.</li>
+    <li><strong>Historical patterns</strong> — the top matching cluster(s) for this order type, with node rankings and sample counts. Up to 3 clusters are included (exact match first, then broader channel+fulfillment_type matches).</li>
+    <li><strong>Node performance</strong> — rolling 7-day metrics for each candidate node: orders fulfilled, avg outcome score, avg delivery hours, backorder rate.</li>
+    <li><strong>Candidates</strong> — each eligible node with its distance, estimated cost, and available inventory.</li>
+  </ul>
+
+  <h4>Score blending</h4>
+  <pre data-lang="python"># AI_ADAPTIVE: KubeAI score weighted 60%, rule-based score 40%
+final_score = 0.6 * ai_score + 0.4 * rule_score
+
+# AI_HYBRID: same formula, different label in sourcing_outcomes
+# (useful for distinguishing "AI primary" vs "transitional AI" in analytics)</pre>
+
+  <h4>Fallback triggers</h4>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Condition</th><th>Fallback behaviour</th></tr></thead>
+      <tbody>
+        <tr><td>Pattern sample count &lt; 10</td><td>Skip KubeAI entirely, use DISTANCE_OPTIMAL. Logged as <code>fallback_reason: "Insufficient pattern data"</code>.</td></tr>
+        <tr><td>KubeAI API error or timeout (10s)</td><td>Skip KubeAI, use DISTANCE_OPTIMAL. Error logged with exception type.</td></tr>
+        <tr><td>Max AI score across all nodes &lt; 0.4</td><td>KubeAI scored all nodes poorly — use DISTANCE_OPTIMAL as more reliable. Logged with the max score.</td></tr>
+        <tr><td>KubeAI returns invalid JSON</td><td>Skip KubeAI, use DISTANCE_OPTIMAL. Logged with the raw response snippet.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Fallback decisions are visible in the order's sourcing decision trail under <code>rule_details.ai_sourcing.fallback_used</code> and <code>fallback_reason</code>.</p>
+
+  <h3>Layer 3 — Pattern discovery</h3>
+  <p>The <code>PatternDiscoveryService</code> runs nightly (Celery beat, 02:00 UTC) via the <code>discover_patterns</code> task in the <code>learning</code> queue.</p>
+
+  <h4>Step 1 — Aggregate patterns</h4>
+  <p>MongoDB <code>$group</code> aggregation on <code>sourcing_outcomes</code> where <code>outcome_score</code> exists, grouped by <code>(cluster_key, node_id)</code>. For each cluster, nodes are ranked by <code>avg_outcome_score</code> and upserted into <code>sourcing_patterns</code>.</p>
+
+  <h4>Step 2 — Compare strategies</h4>
+  <p>A second aggregation groups by <code>(cluster_key, strategy_used)</code> to get avg outcome scores per strategy per cluster. Qualifying clusters must meet all three thresholds:</p>
+  <ul>
+    <li>Total samples (AI + baseline) ≥ 50</li>
+    <li>AI_ADAPTIVE samples ≥ 10</li>
+    <li>AI improvement over DISTANCE_OPTIMAL ≥ 10%</li>
+  </ul>
+
+  <h4>Step 3 — Generate proposals</h4>
+  <p>For each qualifying cluster, one pending <code>AIProposal</code> is created — but only if no active (PENDING or APPROVED) proposal already exists for that cluster key. This prevents duplicate proposals. The proposal includes auto-generated sourcing rule conditions derived from the cluster dimensions (channel, region, amount range, fulfillment type).</p>
+
+  <h3>Layer 4 — A/B experiments</h3>
+  <p>Experiments allow side-by-side comparison of any two sourcing strategies on real orders without committing to a permanent rule change. See <a href="#api-architect">§15 AI Architect</a> for the full experiment usage guide.</p>
+
+  <h4>Experiment evaluation (daily 03:00 UTC)</h4>
+  <p>The <code>evaluate_ai_experiments</code> task checks all running experiments. Winner declaration requires:</p>
+  <ul>
+    <li>Each arm has ≥ 50 labeled outcomes (orders that have reached DELIVERED)</li>
+    <li>Absolute outcome score difference between arms ≥ 0.05</li>
+  </ul>
+  <p>If neither arm has a clear edge, the experiment continues until both thresholds are met or an admin manually stops it.</p>
+
+  <h3>Layer 5 — Node performance metrics</h3>
+  <p>The <code>update_node_performance</code> task runs every 4 hours. It aggregates <code>sourcing_outcomes</code> over the last 7 and 30 days per node, computing: orders fulfilled, avg outcome score, avg delivery hours, avg actual cost, backorder rate %, return rate %. These metrics feed into the AI sourcing prompt as the "NODE PERFORMANCE" context block.</p>
+
+  <h3>MongoDB collections reference</h3>
+  <p>All three AI learning collections live in <code>oms_ai_learning</code> (config key: <code>MONGODB_AI_DB</code>), separate from the <code>oms_events</code> transactional database.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Collection</th><th>Database</th><th>TTL</th><th>Written by</th><th>Read by</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>sourcing_outcomes</code></td><td><code>oms_ai_learning</code></td><td>90 days</td><td>sourcing worker (skeleton at allocation time), carrier worker (actual cost on SHIPPED, delivery hours on DELIVERED), learning worker (outcome_score hourly)</td><td>AISourcingAdvisor, pattern discovery, experiment evaluator, AI Architect UI</td><td>Per-allocation decision log and learning data. The primary raw material for the entire AI pipeline.</td></tr>
+        <tr><td><code>sourcing_patterns</code></td><td><code>oms_ai_learning</code></td><td>180 days</td><td>discover_patterns (nightly 02:00 UTC)</td><td>AISourcingAdvisor._fetch_context(), AI Architect Patterns tab</td><td>Aggregated node performance per order cluster. Stale clusters expire automatically; nightly run re-creates any cluster with recent activity.</td></tr>
+        <tr><td><code>node_performance_metrics</code></td><td><code>oms_ai_learning</code></td><td>—</td><td>update_node_performance (every 4h)</td><td>AISourcingAdvisor._fetch_context(), AI Architect Node Performance tab</td><td>Rolling 7-day and 30-day node stats. One doc per (node_id, period_days); replaced in full on each run.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>PostgreSQL tables reference</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Table</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>ai_proposals</code></td><td>All AI-generated change proposals with full lifecycle tracking (status, approved_by, rollback_data)</td></tr>
+        <tr><td><code>ai_experiments</code></td><td>A/B experiment definitions (strategy pair, traffic split, filter conditions, results)</td></tr>
+        <tr><td><code>sourcing_outcome_labels</code></td><td>PostgreSQL mirror of labeled MongoDB outcomes for fast SQL analytics</td></tr>
+        <tr><td><code>custom_attribute_definitions</code></td><td>Dynamic schema extensions (proposed by AI, stored here, rendered in forms via existing JSONB columns)</td></tr>
+        <tr><td><code>ui_widgets</code></td><td>JSON-configured dashboard widgets (proposed by AI, rendered by DynamicWidget component)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Celery learning tasks</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Task</th><th>Queue</th><th>Schedule</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td><code>label_sourcing_outcomes</code></td><td>learning</td><td>Every hour</td><td>Finds delivered orders with unlabeled outcomes, computes and writes outcome_score. Processes up to 500 docs per run.</td></tr>
+        <tr><td><code>discover_patterns</code></td><td>learning</td><td>Nightly 02:00 UTC</td><td>Aggregates patterns, ranks nodes per cluster, generates proposals for qualifying clusters.</td></tr>
+        <tr><td><code>update_node_performance</code></td><td>learning</td><td>Every 4 hours</td><td>Recomputes rolling 7-day and 30-day node metrics from labeled outcomes.</td></tr>
+        <tr><td><code>evaluate_ai_experiments</code></td><td>learning</td><td>Daily 03:00 UTC</td><td>Checks running experiments, declares winners, generates sourcing_experiment proposals.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ══ PIPELINE ══ -->
+<section id="pipeline">
+  <h2><span class="section-num">18</span> Fulfillment Pipeline</h2>
+
+  <h3>Order Status State Machine</h3>
+  <div class="pipeline">PENDING
+  │ (order confirmed / payment authorized)
+  ▼
+CONFIRMED
+  │ (sourcing engine runs)
+  ▼
+SOURCING ──► SOURCED
+                │
+                ▼
+             PICKING
+                │
+                ▼
+             PACKING
+                │
+                ▼
+          READY_TO_SHIP
+                │ (carrier booked)
+                ▼
+            SHIPPED
+                │ (tracking events)
+                ▼
+        OUT_FOR_DELIVERY
+                │
+                ▼
+           DELIVERED ◄─── PICKED_UP (for BOPIS)
+                │
+                ▼
+            RETURNED ──► REFUNDED
+
+  ── from any pre-shipped state ──► CANCELLED</div>
+
+  <h3>Fulfillment Types &amp; Required Capabilities</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Type</th><th>Description</th><th>Required Capability</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge badge-blue">SHIP_TO_HOME</span></td><td>Standard home delivery</td><td><code>can_ship = true</code></td></tr>
+        <tr><td><span class="badge badge-green">STORE_PICKUP</span></td><td>Buy online, pick up in store (BOPIS)</td><td><code>can_pickup = true</code></td></tr>
+        <tr><td><span class="badge badge-blue">SHIP_FROM_STORE</span></td><td>Retail store ships the order</td><td><code>can_ship = true</code></td></tr>
+        <tr><td><span class="badge badge-yellow">CURBSIDE_PICKUP</span></td><td>Drive-up curbside pickup</td><td><code>can_curbside = true</code></td></tr>
+        <tr><td><span class="badge badge-purple">SAME_DAY_DELIVERY</span></td><td>Same-day home delivery</td><td><code>can_same_day = true</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ══ CELERY ══ -->
+<section id="celery">
+  <h2><span class="section-num">19</span> Celery Workers</h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Queue</th><th>Worker File</th><th>Tasks</th></tr></thead>
+      <tbody>
+        <tr><td><code>sourcing</code></td><td><code>workers/sourcing.py</code></td><td><code>source_order</code> — runs the full sourcing engine; writes <code>sourcing_outcomes</code> to MongoDB</td></tr>
+        <tr><td><code>fulfillment</code></td><td><code>workers/fulfillment.py</code></td><td><code>start_picking</code>, <code>complete_packing</code>, <code>reset_node_daily_counters</code></td></tr>
+        <tr><td><code>carrier</code></td><td><code>workers/carrier.py</code></td><td><code>book_shipment</code>, <code>simulate_delivery</code>, <code>sync_all_tracking</code></td></tr>
+        <tr><td><code>notifications</code></td><td><code>workers/notifications.py</code></td><td><code>send_order_confirmation</code>, <code>send_shipment_notification</code>, <code>send_delivery_notification</code>, <code>send_cancellation_notification</code></td></tr>
+        <tr><td><code>webhooks</code></td><td><code>workers/webhooks.py</code></td><td><code>dispatch_webhook</code>, <code>retry_failed_webhooks</code>, <code>retry_webhook_event</code></td></tr>
+        <tr><td><code>connectors</code></td><td><code>workers/connectors.py</code></td><td><code>sync_fulfillment_to_connector</code>, <code>sync_order_cancel_to_connector</code>, <code>poll_amazon_orders</code></td></tr>
+        <tr><td><code>learning</code></td><td><code>workers/learning.py</code></td><td><code>label_sourcing_outcomes</code>, <code>discover_patterns</code>, <code>update_node_performance</code>, <code>evaluate_ai_experiments</code> — low-priority AI learning loop</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Celery Beat Schedule</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Task</th><th>Schedule</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>reset_node_daily_counters</code></td><td>Daily 00:00 UTC</td><td>Reset <code>current_daily_orders</code> on all active nodes</td></tr>
+        <tr><td><code>retry_failed_webhooks</code></td><td>Every 5 minutes</td><td>Retry FAILED webhook events that are due for retry</td></tr>
+        <tr><td><code>sync_all_tracking</code></td><td>Every 15 minutes</td><td>Sync carrier tracking for all in-transit shipments</td></tr>
+        <tr><td><code>retry_backordered_orders</code></td><td>Every 30 minutes</td><td>Re-run sourcing engine for orders stuck in backorder state</td></tr>
+        <tr><td><code>poll_amazon_orders</code></td><td>Every 15 minutes</td><td>Poll all active Amazon SP-API connectors for new Unshipped/PartiallyShipped orders</td></tr>
+        <tr><td><code>label_sourcing_outcomes</code></td><td>Every hour</td><td>Compute <code>outcome_score</code> for DELIVERED orders; write labels to MongoDB + PostgreSQL</td></tr>
+        <tr><td><code>update_node_performance</code></td><td>Every 4 hours</td><td>Compute rolling 7d/30d node stats from labeled outcomes</td></tr>
+        <tr><td><code>discover_patterns</code></td><td>Daily 02:00 UTC</td><td>Aggregate patterns, compare strategies, auto-generate pending <code>AIProposal</code> records</td></tr>
+        <tr><td><code>evaluate_ai_experiments</code></td><td>Daily 03:00 UTC</td><td>Compute per-arm outcomes; declare winner when ≥50 samples per arm + score diff ≥0.05</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Start Workers</h3>
+  <pre data-lang="bash">celery -A app.workers.celery_app worker \
+  --loglevel=info \
+  -Q sourcing,fulfillment,carrier,notifications,webhooks,connectors,learning \
+  --concurrency=4</pre>
+
+  <div class="callout">
+    <p><strong>Flower monitoring UI:</strong> <a href="http://localhost:5555" style="color:var(--accent-light)">http://localhost:5555</a> — real-time task queue visualization, worker status, and task history.</p>
+  </div>
+</section>
+
+<!-- ══ WEBHOOK SYSTEM ══ -->
+<section id="webhook-system">
+  <h2><span class="section-num">21</span> Webhook System</h2>
+
+  <h3>HMAC-SHA256 Signing</h3>
+  <p>Every outbound webhook request is cryptographically signed. Receivers can verify payload integrity:</p>
+  <pre data-lang="http">POST https://your-endpoint.com/hooks HTTP/1.1
+Content-Type: application/json
+X-OMS-Signature: sha256=abc123...
+X-OMS-Timestamp: 1708000000
+X-OMS-Event: order.shipped</pre>
+
+  <h3>Verification (Python)</h3>
+  <pre data-lang="python">import hmac, hashlib
+
+def verify_webhook(body: bytes, signature: str, secret: str) -> bool:
+    expected = "sha256=" + hmac.new(
+        secret.encode(), body, hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(expected, signature)</pre>
+
+  <h3>Supported Event Types</h3>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 16px">
+    <span class="badge badge-gray">order.created</span>
+    <span class="badge badge-blue">order.confirmed</span>
+    <span class="badge badge-yellow">order.sourced</span>
+    <span class="badge badge-orange">order.picking</span>
+    <span class="badge badge-orange">order.packed</span>
+    <span class="badge badge-blue">order.shipped</span>
+    <span class="badge badge-green">order.delivered</span>
+    <span class="badge badge-red">order.cancelled</span>
+    <span class="badge badge-gray">order.test</span>
+  </div>
+
+  <h3>Retry Strategy (Exponential Backoff)</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Attempt</th><th>Delay</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>1st retry</td><td>5 minutes</td><td><span class="badge badge-yellow">PENDING</span></td></tr>
+        <tr><td>2nd retry</td><td>10 minutes</td><td><span class="badge badge-yellow">PENDING</span></td></tr>
+        <tr><td>3rd retry</td><td>20 minutes</td><td><span class="badge badge-yellow">PENDING</span></td></tr>
+        <tr><td>4+ retries</td><td>—</td><td><span class="badge badge-red">ABANDONED</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ══ CONNECTOR SYSTEM ══ -->
+<section id="connector-system">
+  <h2><span class="section-num">22</span> Connector System</h2>
+  <p>The Connector System enables bidirectional integration between the OMS and external platforms — e-commerce engines, carriers, WMS, and TMS systems. Each connector has a configurable direction (inbound, outbound, or bidirectional) and handles its own authentication protocol.</p>
+
+  <h3>Architecture</h3>
+  <pre data-lang="text">Shopify                              OMS (single URL per connector)
+────────                             ─────────────────────────────
+orders/create  ──┐
+orders/paid    ──┼──► POST /connectors/{id}/webhook
+products/create──┤        │ HMAC-SHA256 validated
+products/update──┘        │ routes by X-Shopify-Topic header
+                          │
+             ┌────────────┴────────────────────────┐
+             │                                      │
+         Order topics                         Product topics
+             │                                      │
+             ▼                                      ▼
+ normalize_order() → OMS Order         normalize_product() → InventoryItems
+ (channel=MARKETPLACE,                 (upsert per active node,
+  connector_id set, dedup check)        seed stock from Shopify qty)
+             │
+             ▼  (when order.status → SHIPPED)
+ Celery: sync_fulfillment_to_connector
+             │
+             ▼
+ push_fulfillment() → POST /orders/{shopify_id}/fulfillments
+             │
+             ▼
+ Shopify notifies buyer of tracking info</pre>
+
+  <h3>Supported Platforms</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Platform</th><th>Category</th><th>Direction</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Shopify</strong></td><td>E-commerce</td><td>Bidirectional</td><td><span class="badge badge-green">Live</span></td></tr>
+        <tr><td>WooCommerce</td><td>E-commerce</td><td>Bidirectional</td><td><span class="badge badge-yellow">Planned</span></td></tr>
+        <tr><td><strong>Amazon SP-API</strong></td><td>E-commerce</td><td>Bidirectional (polling)</td><td><span class="badge badge-green">Live</span></td></tr>
+        <tr><td>Magento 2</td><td>E-commerce</td><td>Bidirectional</td><td><span class="badge badge-yellow">Planned</span></td></tr>
+        <tr><td>BigCommerce</td><td>E-commerce</td><td>Bidirectional</td><td><span class="badge badge-yellow">Planned</span></td></tr>
+        <tr><td>FedEx</td><td>Carrier</td><td>Outbound</td><td><span class="badge badge-yellow">Planned</span></td></tr>
+        <tr><td>UPS</td><td>Carrier</td><td>Outbound</td><td><span class="badge badge-yellow">Planned</span></td></tr>
+        <tr><td>DHL</td><td>Carrier</td><td>Outbound</td><td><span class="badge badge-yellow">Planned</span></td></tr>
+        <tr><td>Custom</td><td>Generic</td><td>Inbound</td><td><span class="badge badge-blue">Framework ready</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Shopify Setup</h3>
+  <p>1. In the OMS Admin Console → <strong>Connectors</strong>, click <em>Add Connector</em> and select Shopify.</p>
+  <p>2. Enter your Shopify store URL, Admin API access token, and generate a webhook secret.</p>
+  <p>3. Copy the webhook URL displayed in the connector card:</p>
+  <pre data-lang="text">https://your-oms.example.com/connectors/{connector_id}/webhook</pre>
+  <p>4. In Shopify Admin → Settings → Notifications → Webhooks, register the <strong>same URL</strong> for each topic you want to receive. All topics share one URL and one signing secret:</p>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 4px">
+    <span class="badge badge-blue">orders/create</span>
+    <span class="badge badge-blue">orders/paid</span>
+    <span class="badge badge-green">products/create</span>
+    <span class="badge badge-green">products/update</span>
+  </div>
+  <p style="margin-bottom:12px;font-size:12px;color:var(--text-muted)">Order topics → import as OMS orders. Product topics → upsert InventoryItem records across all active fulfillment nodes.</p>
+  <p>5. Enable the connector (toggle to <strong>Active</strong>). Orders and product catalog changes from Shopify will automatically sync into the OMS.</p>
+
+  <h3>Amazon SP-API Setup</h3>
+  <p>Amazon uses <strong>polling</strong>, not webhooks. The OMS polls the SP-API every 15 minutes automatically via a Celery Beat scheduled task — no webhook registration is required.</p>
+  <p>1. In Seller Central, navigate to <strong>Apps &amp; Services → Develop Apps</strong>. Create a new app to obtain your <code>client_id</code> and <code>client_secret</code>.</p>
+  <p>2. Generate a <code>refresh_token</code> by completing the OAuth authorization flow for your selling account.</p>
+  <p>3. In the OMS Admin Console → <strong>Connectors</strong>, click <em>Add Connector</em> and select Amazon SP-API. Provide the following fields:</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Config Field</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>client_id</code></td><td>LWA (Login with Amazon) client ID from Seller Central app</td></tr>
+        <tr><td><code>client_secret</code></td><td>LWA client secret from Seller Central app</td></tr>
+        <tr><td><code>refresh_token</code></td><td>OAuth refresh token authorizing OMS to act on behalf of your seller account</td></tr>
+        <tr><td><code>marketplace_id</code></td><td>SP-API marketplace ID (e.g. <code>ATVPDKIKX0DER</code> for US)</td></tr>
+        <tr><td><code>seller_id</code></td><td>Your Amazon seller / merchant ID</td></tr>
+        <tr><td><code>region</code></td><td>API region endpoint: <code>na</code>, <code>eu</code>, or <code>fe</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>4. Click <strong>Test Connection</strong>. The OMS calls <code>GET /sellers/v1/marketplaceParticipations</code> to verify credentials and retrieve marketplace details.</p>
+  <p>5. Enable the connector. The Celery Beat schedule (<code>poll_amazon_orders</code>) will automatically pull new orders every 15 minutes and import them as OMS orders with <code>channel=MARKETPLACE</code>.</p>
+  <div class="callout">
+    <p><strong>No webhook registration needed for Amazon.</strong> All inbound order data flows through the polling task. The OMS deduplicates by <code>external_order_id</code> (Amazon order ID) so repeated polls are safe.</p>
+  </div>
+
+  <h3>Multi-Topic Support (Same URL)</h3>
+  <p>A single connector webhook URL handles every event topic Shopify sends to it. The OMS routes by the <code>X-Shopify-Topic</code> header after HMAC validation:</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Topic</th><th>Handler</th><th>OMS Action</th></tr></thead>
+      <tbody>
+        <tr><td><code>orders/create</code></td><td><code>normalize_order()</code></td><td>Create OMS Order (dedup by external_order_id)</td></tr>
+        <tr><td><code>orders/paid</code></td><td><code>normalize_order()</code></td><td>Create OMS Order (alternate payment trigger)</td></tr>
+        <tr><td><code>products/create</code></td><td><code>normalize_product()</code></td><td>Insert InventoryItem rows for each variant × active node</td></tr>
+        <tr><td><code>products/update</code></td><td><code>normalize_product()</code></td><td>Update product_name / price / active flag; preserve stock levels</td></tr>
+        <tr><td><em>any other topic</em></td><td>—</td><td>Accepted (200 OK) and logged; payload ignored</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout">
+    <p><strong>Note — Amazon SP-API:</strong> Amazon does <strong>not</strong> use webhooks. Instead, the OMS polls the SP-API every 15 minutes via a Celery Beat scheduled task to pull new orders. See the <em>Amazon SP-API Setup</em> section below for configuration details.</p>
+  </div>
+  <div class="callout">
+    <p><strong>Inventory seeding:</strong> When a new SKU arrives via <code>products/create</code>, the OMS creates one <code>InventoryItem</code> per active fulfillment node seeded with Shopify's <code>inventory_quantity</code>. On subsequent <code>products/update</code> events, only metadata (name, price, active flag) is updated — stock quantities are left untouched because the OMS is the system of record for inventory after initial import.</p>
+  </div>
+
+  <h3>Inbound Webhook Security</h3>
+  <p>Connector webhook endpoints (<code>POST /connectors/{id}/webhook</code>) are <strong>exempt from JWT authentication</strong> and instead validated using platform-native HMAC signatures.</p>
+  <pre data-lang="python"># Shopify HMAC validation (inside ShopifyConnector)
+import hmac, hashlib, base64
+
+def validate_webhook(self, headers: dict, raw_body: bytes) -> bool:
+    hmac_header = headers.get("x-shopify-hmac-sha256", "")
+    secret = self.config.get("webhook_secret", "")
+    digest = base64.b64encode(
+        hmac.new(secret.encode(), raw_body, hashlib.sha256).digest()
+    ).decode()
+    return hmac.compare_digest(digest, hmac_header)</pre>
+
+  <h3>Outbound Fulfillment Sync</h3>
+  <p>When an OMS order (sourced from a connector) transitions to <code>SHIPPED</code> status, a Celery task is automatically enqueued on the <code>connectors</code> queue to push the tracking update back to the originating platform.</p>
+  <pre data-lang="python"># Triggered automatically from PATCH /orders/{id}/status
+if payload.status == OrderStatus.SHIPPED and order.connector_id:
+    background_tasks.add_task(_trigger_connector_sync, str(order.id))</pre>
+
+  <h3>Outbound Sync — OMS → Platform</h3>
+  <p>When the OMS changes an order's state or adjusts inventory, it pushes the update back to the originating platform. Each push is handled by a dedicated Celery task on the <code>connectors</code> queue.</p>
+
+  <h4>Shopify</h4>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Trigger</th><th>Celery Task</th><th>API Call</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>OMS order → <code>SHIPPED</code></td>
+          <td><code>sync_fulfillment</code></td>
+          <td><code>POST /orders/{id}/fulfillments.json</code></td>
+          <td>Shopify marks the order fulfilled and emails tracking info to the buyer</td>
+        </tr>
+        <tr>
+          <td>Inventory adjusted in OMS</td>
+          <td><code>push_inventory_to_connectors</code></td>
+          <td><code>POST /inventory_levels/set.json</code></td>
+          <td>Syncs on-hand quantity for the SKU at the given Shopify location. Requires <code>primary_location_id</code> (fetched during Test Connection) and <code>shopify_inventory_item_id</code> (populated when the <code>products/create</code> webhook is received)</td>
+        </tr>
+        <tr>
+          <td>OMS order → <code>CANCELLED</code> (sourced from Shopify)</td>
+          <td><code>sync_order_cancel</code></td>
+          <td><code>POST /orders/{id}/cancel.json</code></td>
+          <td>Cancels the corresponding order in Shopify</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h4>Amazon SP-API</h4>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Trigger</th><th>API Call</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>OMS order → <code>SHIPPED</code></td>
+          <td><code>POST /orders/v0/orders/{amazonOrderId}/shipment</code></td>
+          <td>Confirms shipment to Amazon with carrier code and tracking number; Amazon notifies the buyer</td>
+        </tr>
+        <tr>
+          <td>Inventory adjusted in OMS</td>
+          <td><code>PATCH /listings/2021-08-01/items/{sellerId}/{sku}</code> (Listings Items API)</td>
+          <td>Updates the <code>fulfillment_availability</code> attribute for the listing to reflect current on-hand quantity</td>
+        </tr>
+        <tr>
+          <td>OMS order → <code>CANCELLED</code></td>
+          <td>—</td>
+          <td><strong>Not supported via SP-API for seller-initiated cancels.</strong> Buyers must cancel through Amazon. The OMS records the cancellation locally and logs a <code>connector_events</code> entry, but no API call is made.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Extending with New Connectors</h3>
+  <p>All connectors inherit from <code>BaseConnector</code> in <code>app/services/connectors/base.py</code>. Four methods are abstract (required); two are optional overrides for product/catalog sync:</p>
+  <pre data-lang="python">class BaseConnector(ABC):
+    # ── Required (abstract) ──────────────────────────────────────
+    def validate_webhook(self, headers, raw_body) -> bool: ...
+    def get_event_type(self, headers) -> str: ...
+    def normalize_order(self, payload) -> dict: ...       # → OMS OrderCreate dict
+    async def push_fulfillment(self, order, shipment) -> dict: ...
+    async def test_connection(self) -> dict: ...
+
+    # ── Optional (default: empty set / empty list) ────────────────
+    def get_inbound_topics(self) -> set[str]: ...         # order-creation topics
+    def get_product_topics(self) -> set[str]: ...         # product-sync topics
+    def normalize_product(self, payload) -> list[dict]: ...  # → variant dicts
+
+    # ── Outbound sync (default: no-op) ───────────────────────────
+    async def push_inventory_update(self, sku, quantity_available, mapping) -> dict: ...
+    async def push_order_cancel(self, order) -> dict: ...</pre>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Signature</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>validate_webhook</code></td><td><code>(headers, raw_body) → bool</code></td><td>Validate platform HMAC/signature on inbound webhook</td></tr>
+        <tr><td><code>get_event_type</code></td><td><code>(headers) → str</code></td><td>Extract topic/event type from request headers</td></tr>
+        <tr><td><code>normalize_order</code></td><td><code>(payload) → dict</code></td><td>Transform platform order payload into OMS <code>OrderCreate</code> dict</td></tr>
+        <tr><td><code>push_fulfillment</code></td><td><code>(order, shipment) → dict</code></td><td>Push tracking/fulfillment confirmation to platform</td></tr>
+        <tr><td><code>test_connection</code></td><td><code>() → dict</code></td><td>Verify credentials and return platform metadata</td></tr>
+        <tr><td><code>push_inventory_update</code></td><td><code>(sku, quantity_available, mapping) → dict</code></td><td>Push current stock level for a SKU to the platform. <code>mapping</code> is the <code>connector_inventory_mappings</code> row for the SKU.</td></tr>
+        <tr><td><code>push_order_cancel</code></td><td><code>(order) → dict</code></td><td>Push cancellation to the platform for an OMS order that was cancelled. No-op by default; Amazon override is a local-only log.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Register the new class in <code>app/services/connectors/registry.py</code> to make it available.</p>
+
+  <h3>Event Audit Log</h3>
+  <p>Every inbound and outbound connector activity is recorded in the <code>connector_events</code> table:</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>event_type</th><th>direction</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>orders/create</code></td><td>inbound</td><td>Order received from platform and imported into OMS</td></tr>
+        <tr><td><code>orders/paid</code></td><td>inbound</td><td>Payment confirmed — alternative trigger for order import</td></tr>
+        <tr><td><code>products/create</code></td><td>inbound</td><td>Product created in Shopify — variants upserted as InventoryItems in all active nodes</td></tr>
+        <tr><td><code>products/update</code></td><td>inbound</td><td>Product updated — metadata refreshed; stock levels preserved</td></tr>
+        <tr><td><code>fulfillment.pushed</code></td><td>outbound</td><td>Tracking/fulfillment update sent to platform</td></tr>
+        <tr><td><code>webhook.error</code></td><td>inbound</td><td>Signature validation or parsing failed</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ══ MONITORING ══ -->
+<section id="monitoring">
+  <h2><span class="section-num">23</span> Monitoring &amp; Traceability</h2>
+  <p>The OMS has a built-in error monitoring console accessible at <strong>Admin → Monitoring</strong>. Every unhandled exception across all services — FastAPI routes, Celery workers, background tasks — is automatically captured, fingerprinted, and stored in MongoDB for analysis.</p>
+
+  <h3>Error Capture Pipeline</h3>
+  <pre data-lang="text">Exception raised (anywhere)
+        │
+        ▼
+capture_error() / capture_error_sync()   ← app/services/monitoring.py
+        │
+        ├─► error_events (MongoDB)   — one document per occurrence, 30-day TTL
+        │     event_id, fingerprint, timestamp, level, source_service,
+        │     error_type, error_message, stack_frames,
+        │     request_context, task_context, order_context
+        │
+        └─► error_issues (MongoDB)   — one document per unique fingerprint
+              fingerprint, status (open/resolved/muted),
+              occurrence_count, first_seen_at, last_seen_at</pre>
+
+  <h3>Source Services</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Source</th><th>Constant</th><th>Where instrumented</th></tr></thead>
+      <tbody>
+        <tr><td><code>api</code></td><td><code>SOURCE_API</code></td><td>Global FastAPI exception handler + all unhandled route errors</td></tr>
+        <tr><td><code>sourcing_worker</code></td><td><code>SOURCE_SOURCING</code></td><td>Celery <code>source_order</code> task</td></tr>
+        <tr><td><code>fulfillment_worker</code></td><td><code>SOURCE_FULFILLMENT</code></td><td>Celery <code>start_picking</code> and <code>complete_packing</code></td></tr>
+        <tr><td><code>carrier_worker</code></td><td><code>SOURCE_CARRIER</code></td><td>Celery <code>book_shipment</code></td></tr>
+        <tr><td><code>webhook_worker</code></td><td><code>SOURCE_WEBHOOK</code></td><td>Celery <code>dispatch_webhook</code></td></tr>
+        <tr><td><code>connector_worker</code></td><td><code>SOURCE_CONNECTOR</code></td><td>Celery <code>sync_fulfillment_to_connector</code> + inbound background tasks</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Monitoring API <code>/monitoring</code></h3>
+  <p>All endpoints require superadmin authentication.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/monitoring/summary</code></td><td>Quick stats: open issues, errors/1h, errors/24h, warnings/24h</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/monitoring/events</code></td><td>Paginated raw event list — filter by time, level, source, error_type, order_id</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/monitoring/events/{event_id}</code></td><td>Single event with full stack trace</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/monitoring/issues</code></td><td>Aggregated issues — filter by status, source, level</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/monitoring/issues/{fingerprint}</code></td><td>Single issue with 10 most recent occurrences</td></tr>
+        <tr><td><span class="method method-patch">PATCH</span></td><td><code>/monitoring/issues/{fingerprint}</code></td><td>Update status: <code>open</code>, <code>resolved</code>, <code>muted</code> (+ mute_hours)</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/monitoring/metrics/rate</code></td><td>Error rate over time bucketed by hour</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/monitoring/metrics/top</code></td><td>Top N issues by occurrence count</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/monitoring/metrics/sources</code></td><td>Error breakdown by source service</td></tr>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/monitoring/test-error</code></td><td>Inject a synthetic test error to verify the capture pipeline</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Fingerprinting</h3>
+  <p>Each error is assigned a stable 16-character fingerprint so that repeated occurrences of the same error (e.g. a recurring database connection timeout) are grouped into a single <em>issue</em> rather than creating noise:</p>
+  <pre data-lang="python">fingerprint = SHA256(f"{source_service}:{error_type}:{top_stack_frame}")[:16]</pre>
+  <p>The <em>top stack frame</em> is the deepest frame inside application code (excluding library internals), extracted from the Python traceback.</p>
+
+  <h3>Issue Lifecycle</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Status</th><th>Meaning</th><th>Transitions</th></tr></thead>
+      <tbody>
+        <tr><td><code>open</code></td><td>Active — being investigated</td><td>→ resolved, → muted</td></tr>
+        <tr><td><code>resolved</code></td><td>Fixed — will reopen if the error recurs</td><td>→ open (auto on new occurrence)</td></tr>
+        <tr><td><code>muted</code></td><td>Suppressed for N hours</td><td>→ open (after muted_until expires)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Verifying the Pipeline</h3>
+  <pre data-lang="bash">curl -X POST http://localhost:8001/monitoring/test-error \
+  -H "Authorization: Bearer {superadmin_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Smoke test", "source": "api", "level": "ERROR"}'</pre>
+  <p>After calling this endpoint, navigate to <strong>Monitoring → Issues</strong> or <strong>Monitoring → Events</strong> in the UI to confirm the entry appears.</p>
+</section>
+
+<!-- ══ CONFIG ══ -->
+<section id="config">
+  <h2><span class="section-num">24</span> Configuration</h2>
+  <p>All configuration is managed via environment variables. For local development, create a <code>.env</code> file in the project root.</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td colspan="3" style="background:rgba(59,130,246,0.06);font-weight:700;color:var(--accent-light);font-size:11px;text-transform:uppercase;letter-spacing:0.06em">Data Layer</td></tr>
+        <tr><td><code>DATABASE_URL</code></td><td><code>postgresql+asyncpg://...</code></td><td>Async PostgreSQL URL — tenant data-plane database (<code>oms_db</code> on main pod, <code>oms_{org}_{env}</code> on tenant pods)</td></tr>
+        <tr><td><code>SYNC_DATABASE_URL</code></td><td><code>postgresql+psycopg2://...</code></td><td>Sync PostgreSQL URL for Celery workers (same DB as DATABASE_URL)</td></tr>
+        <tr><td><code>CONTROL_DATABASE_URL</code></td><td><em>blank (= DATABASE_URL)</em></td><td><strong>Multi-tenant only.</strong> Points every pod at the shared <code>oms_db</code> control-plane database. Set on tenant pods: <code>postgresql+asyncpg://oms_user:oms_pass@postgres:5432/oms_db</code>. Blank on the main pod (falls back to DATABASE_URL).</td></tr>
+        <tr><td><code>MONGODB_URL</code></td><td><code>mongodb://...</code></td><td>MongoDB connection string</td></tr>
+        <tr><td><code>MONGODB_DB</code></td><td><code>oms_events</code></td><td>Events MongoDB database name (overridden per-environment to <code>oms_events_{org}_{env}</code>)</td></tr>
+        <tr><td><code>MONGODB_AI_DB</code></td><td><code>oms_ai_learning</code></td><td>AI learning MongoDB database name (overridden per-environment)</td></tr>
+        <tr><td><code>REDIS_URL</code></td><td><code>redis://:pass@.../0</code></td><td>Redis URL for application cache and environment resolution (DB 0)</td></tr>
+        <tr><td><code>CELERY_BROKER_URL</code></td><td><code>redis://:pass@.../1</code></td><td>Redis DB 1 for Celery broker</td></tr>
+        <tr><td><code>CELERY_RESULT_BACKEND</code></td><td><code>redis://:pass@.../2</code></td><td>Redis DB 2 for task results</td></tr>
+        <tr><td><code>ELASTICSEARCH_URL</code></td><td><code>http://localhost:9200</code></td><td>Elasticsearch connection URL</td></tr>
+        <tr><td colspan="3" style="background:rgba(59,130,246,0.06);font-weight:700;color:var(--accent-light);font-size:11px;text-transform:uppercase;letter-spacing:0.06em">Multi-Tenant Identity</td></tr>
+        <tr><td><code>TENANT_SLUG</code></td><td><em>unset on main pod</em></td><td><strong>Tenant pods only.</strong> Set to the org slug, e.g. <code>abc</code>. Used in docker-compose labels and container naming. Has no runtime effect — informational only.</td></tr>
+        <tr><td><code>ENVIRONMENT</code></td><td><em>unset on main pod</em></td><td><strong>Tenant pods only.</strong> Set to the env slug, e.g. <code>dev</code>. Informational only.</td></tr>
+        <tr><td><code>PLAN_TIER</code></td><td><em>unset</em></td><td>Subscription tier for rate limiting: <code>STARTER</code> · <code>GROWTH</code> · <code>ENTERPRISE</code>. Not yet enforced.</td></tr>
+        <tr><td><code>FRONTEND_URL</code></td><td><code>http://localhost:3001</code></td><td>Origin URL of the frontend. Used in CORS allowed origins and redirect URLs.</td></tr>
+        <tr><td><code>ALLOWED_ORIGINS</code></td><td><code>http://localhost:3001</code></td><td>Comma-separated CORS origins allowed to call this API pod. Include the main frontend URL and the tenant pod URL if different.</td></tr>
+        <tr><td colspan="3" style="background:rgba(59,130,246,0.06);font-weight:700;color:var(--accent-light);font-size:11px;text-transform:uppercase;letter-spacing:0.06em">Security &amp; App Settings</td></tr>
+        <tr><td><code>SECRET_KEY</code></td><td>—</td><td>JWT signing key. Use a random 32-byte hex string in production.</td></tr>
+        <tr><td><code>WEBHOOK_SECRET</code></td><td>—</td><td>Default HMAC signing secret for outbound webhooks</td></tr>
+        <tr><td><code>WEBHOOK_TIMEOUT_SECONDS</code></td><td><code>10</code></td><td>HTTP timeout per webhook delivery attempt</td></tr>
+        <tr><td><code>WEBHOOK_MAX_RETRIES</code></td><td><code>3</code></td><td>Max retry attempts before ABANDONED</td></tr>
+        <tr><td><code>DEFAULT_SOURCING_STRATEGY</code></td><td><code>DISTANCE_OPTIMAL</code></td><td>Fallback strategy when no rule matches</td></tr>
+        <tr><td><code>MAX_SPLIT_NODES</code></td><td><code>3</code></td><td>Global max nodes for split fulfillment</td></tr>
+        <tr><td><code>ANTHROPIC_API_KEY</code></td><td>—</td><td>Required for <code>AI_ADAPTIVE</code> / <code>AI_HYBRID</code> strategies and AI Architect proposals</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ══ RUNNING ══ -->
+<section id="running">
+  <h2><span class="section-num">25</span> Running the System</h2>
+
+  <div class="callout">
+    <p><strong>Prerequisites:</strong> Docker Desktop must be running. Python 3.12+ is needed only for local dev/testing outside Docker.</p>
+  </div>
+
+  <h3>Start All Services</h3>
+  <pre data-lang="bash">cd D:\OMS
+docker compose up -d --build</pre>
+
+  <p>Services started after this command:</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Container</th><th>Port</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>oms_postgres</code></td><td>5432</td><td>PostgreSQL 16 primary database</td></tr>
+        <tr><td><code>oms_mongodb</code></td><td>27017</td><td>MongoDB 7 document store</td></tr>
+        <tr><td><code>oms_redis</code></td><td>6379</td><td>Redis 7.2 cache + broker</td></tr>
+        <tr><td><code>oms_elasticsearch</code></td><td>9200</td><td>Elasticsearch 8.12</td></tr>
+        <tr><td><code>oms_api</code></td><td>8001</td><td>FastAPI application</td></tr>
+        <tr><td><code>oms_celery_worker</code></td><td>—</td><td>All 7 queue workers</td></tr>
+        <tr><td><code>oms_celery_beat</code></td><td>—</td><td>Scheduled task runner</td></tr>
+        <tr><td><code>oms_flower</code></td><td>5555</td><td>Celery monitoring UI</td></tr>
+        <tr><td><code>oms_frontend</code></td><td>3001</td><td>React GUI (this app)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Seed All Databases</h3>
+  <pre data-lang="bash">docker compose exec api python scripts/seed.py</pre>
+
+  <p>Seeds the following data:</p>
+  <ul>
+    <li><strong>PostgreSQL:</strong> 8 fulfillment nodes, 64 inventory items (8 SKUs × 8 nodes), 5 sourcing rules, 1 webhook endpoint</li>
+    <li><strong>MongoDB:</strong> 8 product catalog documents, 3 sample order events</li>
+    <li><strong>Redis:</strong> version, stats, and cache warmup keys</li>
+    <li><strong>Elasticsearch:</strong> 8 product documents, 3 sample order documents</li>
+  </ul>
+
+  <h3>Service URLs</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Service</th><th>URL</th></tr></thead>
+      <tbody>
+        <tr><td>Frontend GUI</td><td><a href="http://localhost:3001" style="color:var(--accent-light)">http://localhost:3001</a></td></tr>
+        <tr><td>FastAPI (Swagger UI)</td><td><a href="http://localhost:8001/docs" style="color:var(--accent-light)">http://localhost:8001/docs</a></td></tr>
+        <tr><td>FastAPI (ReDoc)</td><td><a href="http://localhost:8001/redoc" style="color:var(--accent-light)">http://localhost:8001/redoc</a></td></tr>
+        <tr><td>OpenAPI JSON</td><td><a href="http://localhost:8001/openapi.json" style="color:var(--accent-light)">http://localhost:8001/openapi.json</a></td></tr>
+        <tr><td>Health Check</td><td><a href="http://localhost:8001/health" style="color:var(--accent-light)">http://localhost:8001/health</a></td></tr>
+        <tr><td>Flower (Celery Monitor)</td><td><a href="http://localhost:5555" style="color:var(--accent-light)">http://localhost:5555</a></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Run Tests</h3>
+  <pre data-lang="bash">PYTHONPATH=D:\OMS python -m pytest tests/test_imports.py -v</pre>
+</section>
+
+<!-- ══ E2E FLOW ══ -->
+<section id="e2e">
+  <h2><span class="section-num">26</span> End-to-End Order Flow</h2>
+
+  <h3>Step 1 — Create an Order</h3>
+  <pre data-lang="bash">curl -X POST http://localhost:8001/orders/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channel": "WEB",
+    "fulfillment_type": "SHIP_TO_HOME",
+    "customer_email": "customer@example.com",
+    "customer_name": "John Doe",
+    "line_items": [
+      {"sku": "SKU-WIDGET-A", "product_name": "Premium Widget A",
+       "quantity": 2, "unit_price": 29.99},
+      {"sku": "SKU-GADGET-X", "product_name": "Gadget X Pro",
+       "quantity": 1, "unit_price": 99.99}
+    ],
+    "shipping_address": {
+      "address1": "456 Park Ave", "city": "New York", "state": "NY",
+      "postal_code": "10022", "latitude": 40.7614, "longitude": -73.9776
+    }
+  }'</pre>
+
+  <p><strong>Response (HTTP 201):</strong> Returns the new order with <code>"status": "PENDING"</code> and a generated <code>order_number</code> like <code>ORD-20240215-XK9M2A</code>.</p>
+
+  <h3>Step 2 — Sourcing Fires Automatically (~2 seconds)</h3>
+  <ol>
+    <li>Celery <code>sourcing</code> worker picks up the <code>source_order</code> task</li>
+    <li>Loads all active sourcing rules sorted by priority</li>
+    <li>Evaluates the catch-all "Default — Distance Optimal" rule</li>
+    <li>Loads all ACTIVE nodes with inventory for each requested SKU</li>
+    <li>Computes haversine distance from customer coordinates to each node</li>
+    <li>Scores nodes — <code>STR-NYC-01</code> at ~1.8km wins for a NYC customer</li>
+    <li>Creates <code>FulfillmentAllocation</code> rows (one per SKU)</li>
+    <li>Reserves inventory: <code>quantity_available -= quantity_allocated</code></li>
+    <li>Order transitions to <code>SOURCED</code></li>
+  </ol>
+
+  <h3>Step 3 — Fulfillment Pipeline (~5–10 seconds)</h3>
+  <ul>
+    <li><strong>Picking</strong> (t+2s): Allocations → <code>PICKING</code>, order → <code>PICKING</code></li>
+    <li><strong>Packing</strong> (t+7s): Allocations → <code>PACKED</code>, order → <code>PACKING</code> → <code>READY_TO_SHIP</code></li>
+  </ul>
+
+  <h3>Step 4 — Carrier Booking</h3>
+  <ul>
+    <li>Selects a random carrier (UPS, FedEx, USPS, DHL)</li>
+    <li>Generates a mock tracking number</li>
+    <li>Creates a <code>Shipment</code> record with estimated delivery date</li>
+    <li>Order → <code>SHIPPED</code>, allocations → <code>SHIPPED</code></li>
+    <li>Fires <code>order.shipped</code> notification + webhook</li>
+  </ul>
+
+  <h3>Step 5 — Delivery Simulation (~10 seconds later)</h3>
+  <p>Adds tracking events: <code>IN_TRANSIT → OUT_FOR_DELIVERY → DELIVERED</code>. Order → <code>DELIVERED</code>. Fires <code>order.delivered</code> webhook.</p>
+
+  <h3>Step 6 — Verify via Search</h3>
+  <pre data-lang="bash">curl -X POST http://localhost:8001/search/orders \
+  -H "Content-Type: application/json" \
+  -d '{"query": "John Doe", "status": "DELIVERED"}'</pre>
+
+  <h3>Step 7 — Check Audit Trail</h3>
+  <pre data-lang="bash">curl http://localhost:8001/orders/{order_id}/events</pre>
+  <p>Returns chronological MongoDB events: <code>order.created → order.sourced → order.shipped → order.delivered</code></p>
+
+  <h3>Step 8 — Analytics</h3>
+  <pre data-lang="bash">curl "http://localhost:8001/analytics/dashboard?from_date=2024-01-01"</pre>
+</section>
+
+<!-- ══ SEED DATA ══ -->
+<section id="seed-data">
+  <h2><span class="section-num">27</span> Seed Data Reference</h2>
+
+  <h3>Fulfillment Nodes (8 total)</h3>
+  <div class="node-grid">
+    <div class="node-card">
+      <div class="node-code">DC-EAST <span class="badge badge-blue" style="font-size:10px">Distribution Center</span></div>
+      <div class="node-loc">Edison, NJ — 2000 orders/day</div>
+      <div class="node-caps">
+        <span class="cap cap-ship">SHIP</span>
+      </div>
+    </div>
+    <div class="node-card">
+      <div class="node-code">DC-WEST <span class="badge badge-blue" style="font-size:10px">Distribution Center</span></div>
+      <div class="node-loc">Los Angeles, CA — 2500 orders/day</div>
+      <div class="node-caps">
+        <span class="cap cap-ship">SHIP</span>
+        <span class="cap cap-sameday">SAME-DAY</span>
+      </div>
+    </div>
+    <div class="node-card">
+      <div class="node-code">DC-MID <span class="badge badge-blue" style="font-size:10px">Distribution Center</span></div>
+      <div class="node-loc">Chicago, IL — 1800 orders/day</div>
+      <div class="node-caps">
+        <span class="cap cap-ship">SHIP</span>
+      </div>
+    </div>
+    <div class="node-card">
+      <div class="node-code">STR-NYC-01 <span class="badge badge-green" style="font-size:10px">Retail Store</span></div>
+      <div class="node-loc">New York, NY — 300 orders/day</div>
+      <div class="node-caps">
+        <span class="cap cap-ship">SHIP</span>
+        <span class="cap cap-pickup">PICKUP</span>
+        <span class="cap cap-curbside">CURBSIDE</span>
+        <span class="cap cap-sameday">SAME-DAY</span>
+      </div>
+    </div>
+    <div class="node-card">
+      <div class="node-code">STR-LA-01 <span class="badge badge-green" style="font-size:10px">Retail Store</span></div>
+      <div class="node-loc">Beverly Hills, CA — 250 orders/day</div>
+      <div class="node-caps">
+        <span class="cap cap-ship">SHIP</span>
+        <span class="cap cap-pickup">PICKUP</span>
+        <span class="cap cap-curbside">CURBSIDE</span>
+        <span class="cap cap-sameday">SAME-DAY</span>
+      </div>
+    </div>
+    <div class="node-card">
+      <div class="node-code">STR-CHI-01 <span class="badge badge-green" style="font-size:10px">Retail Store</span></div>
+      <div class="node-loc">Chicago, IL — 200 orders/day</div>
+      <div class="node-caps">
+        <span class="cap cap-ship">SHIP</span>
+        <span class="cap cap-pickup">PICKUP</span>
+        <span class="cap cap-sameday">SAME-DAY</span>
+      </div>
+    </div>
+    <div class="node-card">
+      <div class="node-code">STR-MIA-01 <span class="badge badge-green" style="font-size:10px">Retail Store</span></div>
+      <div class="node-loc">Miami Beach, FL — 150 orders/day</div>
+      <div class="node-caps">
+        <span class="cap cap-ship">SHIP</span>
+        <span class="cap cap-pickup">PICKUP</span>
+        <span class="cap cap-curbside">CURBSIDE</span>
+      </div>
+    </div>
+    <div class="node-card">
+      <div class="node-code">DARK-SF-01 <span class="badge badge-purple" style="font-size:10px">Dark Store</span></div>
+      <div class="node-loc">San Francisco, CA — 500 orders/day</div>
+      <div class="node-caps">
+        <span class="cap cap-ship">SHIP</span>
+        <span class="cap cap-sameday">SAME-DAY</span>
+      </div>
+    </div>
+  </div>
+
+  <h3>Sourcing Rules (5 active)</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Priority</th><th>Name</th><th>Strategy</th><th>Conditions</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>10</strong></td>
+          <td>Same-Day — West Coast</td>
+          <td><span class="badge badge-purple">STORE_NEAREST</span></td>
+          <td><code>fulfillment_type = SAME_DAY_DELIVERY</code> AND <code>state IN [CA,WA,OR]</code></td>
+        </tr>
+        <tr>
+          <td><strong>20</strong></td>
+          <td>BOPIS / Curbside</td>
+          <td><span class="badge badge-blue">INVENTORY_RESERVATION</span></td>
+          <td><code>fulfillment_type IN [STORE_PICKUP, CURBSIDE_PICKUP]</code></td>
+        </tr>
+        <tr>
+          <td><strong>30</strong></td>
+          <td>High-Value Orders</td>
+          <td><span class="badge badge-yellow">COST_OPTIMAL</span></td>
+          <td><code>total_amount > 200</code></td>
+        </tr>
+        <tr>
+          <td><strong>40</strong></td>
+          <td>Marketplace</td>
+          <td><span class="badge badge-orange">LEAST_COST_SPLIT</span></td>
+          <td><code>channel = MARKETPLACE</code></td>
+        </tr>
+        <tr>
+          <td><strong>100</strong></td>
+          <td>Default (catch-all)</td>
+          <td><span class="badge badge-green">DISTANCE_OPTIMAL</span></td>
+          <td><em>No conditions — matches everything</em></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Product SKUs (8 SKUs × 8 nodes = 64 inventory records)</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>SKU</th><th>Product Name</th><th>Price</th></tr></thead>
+      <tbody>
+        <tr><td><code>SKU-WIDGET-A</code></td><td>Premium Widget A</td><td>$29.99</td></tr>
+        <tr><td><code>SKU-WIDGET-B</code></td><td>Standard Widget B</td><td>$19.99</td></tr>
+        <tr><td><code>SKU-GADGET-X</code></td><td>Gadget X Pro</td><td>$99.99</td></tr>
+        <tr><td><code>SKU-GADGET-Y</code></td><td>Gadget Y Basic</td><td>$49.99</td></tr>
+        <tr><td><code>SKU-GIZMO-1</code></td><td>Gizmo 1</td><td>$14.99</td></tr>
+        <tr><td><code>SKU-GIZMO-2</code></td><td>Gizmo 2 Deluxe</td><td>$39.99</td></tr>
+        <tr><td><code>SKU-TOOL-Z</code></td><td>Power Tool Z</td><td>$149.99</td></tr>
+        <tr><td><code>SKU-ACCESSORY-1</code></td><td>Accessory Pack 1</td><td>$9.99</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ══ ADMIN CONSOLE ══ -->
+<section id="admin-console">
+  <h2><span class="section-num">28</span> Admin Console</h2>
+  <p>The Admin Console (<code>/admin</code>) is the central hub for user management, permission configuration, and access control across the entire platform. It is accessible only to users with <code>SUPERADMIN</code> or <code>PLATFORM_OWNER</code> platform roles.</p>
+
+  <div class="callout">
+    <p><strong>Navigation:</strong> Click <strong>Admin</strong> in the sidebar. The page is organized into four tabs: <em>Users</em>, <em>Groups &amp; Permissions</em>, <em>Access Control</em>, and <em>Access Matrix</em>.</p>
+  </div>
+
+  <h3 id="rbac-model">RBAC Model — Three-Layer Hierarchy</h3>
+  <p>Access in the OMS is controlled by three layers that stack on top of each other:</p>
+  <div class="arch-diagram">LAYER 1 — Platform Role  (global, stored on users.platform_role)
+  PLATFORM_OWNER  — Full control. Create orgs, environments, assign roles.
+  SUPERADMIN      — Manage users, webhooks, connectors, monitoring.
+                    Cannot create orgs/environments.
+  USER            — Standard access. Sees only envs explicitly granted.
+        │
+        ▼
+LAYER 2 — Org Role  (per organization, user_organization_roles table)
+  ORG_OWNER   — Manage all environments in the org, invite/remove org members.
+  ORG_ADMIN   — Manage environments, cannot delete org or remove ORG_OWNER.
+  ORG_MEMBER  — Read-only view of org and its environments.
+        │
+        ▼
+LAYER 3 — Env Role  (per environment, user_environment_roles table)
+  OWNER   — Full control of the environment, including member management.
+  ADMIN   — Manage orders, inventory, nodes, sourcing rules.
+  MEMBER  — Create and update records. Cannot delete or change config.
+  VIEWER  — Read-only access to all environment data.</div>
+
+  <div class="callout">
+    <p><strong>Effective access:</strong> A user's final access to an environment is the <em>highest</em> applicable role across all three layers. A <code>SUPERADMIN</code> implicitly has full access to every environment. An <code>ORG_OWNER</code> has full access to every environment within that org even without an explicit env role.</p>
+  </div>
+
+  <h3 id="user-management">Tab 1 — Users</h3>
+  <p>Shows all users registered on the platform. Each row displays the username, email, platform role badge, group membership, account status (active / suspended), and the last login time.</p>
+
+  <h4>Platform Role Management</h4>
+  <p>Click any user row to open the <strong>User Access Drawer</strong> — a right-side panel showing the user's complete access picture across all organizations and environments. From the drawer you can:</p>
+  <ul>
+    <li><strong>Change platform role</strong> — upgrade/downgrade between PLATFORM_OWNER, SUPERADMIN, USER.</li>
+    <li><strong>Grant org role</strong> — assign the user an organization-level role (ORG_OWNER / ORG_ADMIN / ORG_MEMBER) for any existing organization. This gives the user visibility into all environments within that org.</li>
+    <li><strong>Revoke org role</strong> — removes the user's access to all environments within that organization (unless they also have individual env roles).</li>
+    <li><strong>Grant env role</strong> — assign a specific role (OWNER / ADMIN / MEMBER / VIEWER) for a specific environment, regardless of org membership.</li>
+    <li><strong>Revoke env role</strong> — removes the user's individual access to that environment.</li>
+  </ul>
+
+  <h4>Creating a User with Org/Environment Access</h4>
+  <p>To add a new user and grant them access to a specific organization and environment:</p>
+  <ol class="steps">
+    <li>
+      <div>
+        <strong>Create the user account</strong>
+        <p>In the Users tab, click <strong>Create User</strong>. Fill in name, email, password, platform role (<code>USER</code> for standard access), and optionally assign a group.</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <strong>Open the User Access Drawer</strong>
+        <p>Click the user row in the Users table. The drawer opens on the right side.</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <strong>Grant an Org Role (optional)</strong>
+        <p>In the <em>Organization Access</em> section, click <strong>Grant Org Role</strong>. Select the organization and role (<code>ORG_MEMBER</code> for read-only, <code>ORG_ADMIN</code> to let them manage environments). This lets the user see the org in their environment switcher.</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <strong>Grant an Env Role</strong>
+        <p>In the <em>Environment Access</em> section, click <strong>Grant Env Role</strong>. Select the specific environment and role (<code>ADMIN</code> to manage orders/inventory, <code>MEMBER</code> for day-to-day operations, <code>VIEWER</code> for read-only). The user can now switch to this environment using the environment switcher.</p>
+      </div>
+    </li>
+  </ol>
+
+  <h3 id="access-control">Tab 3 — Access Control</h3>
+  <p>A higher-level view showing who has access to each organization and environment, organized by the tenant hierarchy rather than by user. Useful for auditing who can access what without going user-by-user.</p>
+  <p>The tab has two sub-tabs:</p>
+  <ul>
+    <li><strong>Org View</strong> — shows each organization with a table of all users who have an org-level role. Use <em>Add Member</em> to directly grant an org role here. Use the trash icon to revoke it.</li>
+    <li><strong>Env View</strong> — shows each environment (grouped by org) with its member list. Use <em>Add Member</em> to grant an env role. The environment type badge (DEV/QA/STAGING/PROD) is color-coded for quick scanning.</li>
+  </ul>
+
+  <h4>Granting access directly from Access Control</h4>
+  <ol class="steps">
+    <li>
+      <div>
+        <strong>Switch to "Org View" or "Env View"</strong>
+        <p>Use the sub-tabs at the top of the Access Control tab.</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <strong>Find the org or environment</strong>
+        <p>Each card shows the org/env name and the current member list.</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <strong>Click "Add Member"</strong>
+        <p>A modal appears. Start typing a name or email to search for existing users. Select the user and pick a role using the radio buttons.</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <strong>Confirm</strong>
+        <p>Click <strong>Grant Access</strong>. The member list updates immediately. The user will see the environment in their switcher on next page load.</p>
+      </div>
+    </li>
+  </ol>
+
+  <h3 id="permission-groups">Tab 2 — Groups &amp; Permissions</h3>
+  <p>Permission groups let you define reusable sets of feature permissions that can be assigned to users. A permission is a <code>feature:action</code> string, e.g. <code>orders:write</code>, <code>inventory:read</code>, <code>connectors:manage</code>.</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Permission</th><th>What it grants</th></tr></thead>
+      <tbody>
+        <tr><td><code>orders:read</code></td><td>View orders, order detail, audit trail</td></tr>
+        <tr><td><code>orders:write</code></td><td>Create orders, update status, cancel</td></tr>
+        <tr><td><code>inventory:read</code></td><td>View inventory levels, products, nodes</td></tr>
+        <tr><td><code>inventory:write</code></td><td>Adjust stock, transfer, update products</td></tr>
+        <tr><td><code>sourcing:read</code></td><td>View sourcing rules and decisions</td></tr>
+        <tr><td><code>sourcing:write</code></td><td>Create/update/delete sourcing rules</td></tr>
+        <tr><td><code>connectors:manage</code></td><td>Create, configure, and toggle platform connectors</td></tr>
+        <tr><td><code>webhooks:manage</code></td><td>Register and manage webhook endpoints</td></tr>
+        <tr><td><code>analytics:read</code></td><td>Access analytics dashboard and reports</td></tr>
+        <tr><td><code>admin:users</code></td><td>View and manage user accounts</td></tr>
+        <tr><td><code>admin:roles</code></td><td>Grant and revoke org/env roles</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Tab 4 — Access Matrix</h3>
+  <p>A grid view showing all users (rows) × all environments (columns). Each cell displays the user's effective role for that environment — considering both their org role and their direct env role. Empty cells mean the user has no access to that environment.</p>
+  <p>This view is ideal for a quick compliance audit: you can see at a glance whether any user has unexpectedly broad access (e.g. OWNER on the Production environment) and immediately open their drawer to adjust.</p>
+</section>
+
+<!-- ══ MULTI-TENANT PLATFORM ══ -->
+<section id="multi-tenant-overview">
+  <h1>Multi-Tenant Platform Architecture</h1>
+  <p class="lead">
+    The OMS is a <strong>multi-tenant, multi-environment</strong> platform. A single infrastructure
+    deployment serves multiple client organizations, each with fully isolated data environments &mdash;
+    their own PostgreSQL databases, MongoDB databases, and Elasticsearch index namespaces.
+    No data ever crosses organizational boundaries at the storage layer.
+  </p>
+
+  <div class="arch-diagram">+-----------------------------------------------------------------------+
+|          CONTROL PLANE  (oms_db -- single shared database)           |
+|                                                                       |
+|   organizations  environments  users  user_groups                    |
+|   user_organization_roles       user_environment_roles                |
+|                                                                       |
+|   All pods connect here for:                                          |
+|     * Authentication (JWT issuance + validation)                      |
+|     * Environment resolution (X-OMS-Environment header)               |
+|     * Org and environment management API                              |
+|     * Admin Console (user, role, access management)                   |
++------------------------+----------------------------------------------+
+                         | each env resolves to its own data plane
+        +----------------+-----------------+------------------+
+        |                |                 |                  |
+  oms_db           oms_acme_dev     oms_acme_prod     oms_widgetco_qa
+  (default prod)   PostgreSQL DB    PostgreSQL DB     PostgreSQL DB
+  -------------    MongoDB x2       MongoDB x2        MongoDB x2
+  Existing data    ES prefix:       ES prefix:        ES prefix:
+  untouched        acme_dev_*       acme_prod_*       widgetco_qa_*</div>
+
+  <h3>Key design principles</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Principle</th><th>What it means in practice</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Database-per-environment</strong></td><td>The strongest possible isolation. No shared tables, no row-level tenant filters. A SQL error in one environment cannot leak data from another.</td></tr>
+        <tr><td><strong>Single control plane</strong></td><td><code>oms_db</code> is the one shared database for auth, user management, and environment metadata. All pods connect to it regardless of which tenant they serve.</td></tr>
+        <tr><td><strong>Zero breaking changes</strong></td><td>The existing <code>oms_db</code> data is registered as the default Production environment at first startup. No migration needed. JWT tokens without an <code>X-OMS-Environment</code> header continue to work.</td></tr>
+        <tr><td><strong>Human-gated provisioning</strong></td><td>Environments are created by an admin through the UI or API. The system provisions the database asynchronously and reports status. Nothing happens automatically without an explicit action.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="platform-roles">
+  <h2><span class="section-num">29a</span> Role Hierarchy</h2>
+
+  <h3>Platform roles (global &mdash; stored on <code>users.platform_role</code>)</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Role</th><th>Who holds it</th><th>Capabilities</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="badge role-platform-owner">PLATFORM_OWNER</span></td>
+          <td>The operator of the OMS deployment</td>
+          <td>Create orgs &amp; environments, assign any platform role, full admin, manage all users</td>
+        </tr>
+        <tr>
+          <td><span class="badge role-superadmin">SUPERADMIN</span></td>
+          <td>Client power users / support staff</td>
+          <td>Admin console, webhooks, connectors, monitoring, AI Architect &mdash; cannot create orgs/environments</td>
+        </tr>
+        <tr>
+          <td><span class="badge role-user">USER</span></td>
+          <td>Regular operators</td>
+          <td>Access only to environments where they have been explicitly granted a role</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Organization roles (per org &mdash; <code>user_organization_roles</code>)</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Role</th><th>Capabilities within the org</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge role-org-owner">ORG_OWNER</span></td><td>Manage all environments, invite/remove any org member, delete the org. Implicitly has OWNER access to every environment in the org.</td></tr>
+        <tr><td><span class="badge role-org-admin">ORG_ADMIN</span></td><td>Create &amp; configure environments, manage members below admin level. Cannot delete the org or demote ORG_OWNER.</td></tr>
+        <tr><td><span class="badge role-org-member">ORG_MEMBER</span></td><td>Read-only view of the org and its environments. Can switch to any environment they have an env role on.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Environment roles (per environment &mdash; <code>user_environment_roles</code>)</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Role</th><th>Capabilities within the environment</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge role-env-owner">OWNER</span></td><td>Full control: manage orders, inventory, sourcing rules, connectors, webhooks, and the environment member list.</td></tr>
+        <tr><td><span class="badge role-env-admin">ADMIN</span></td><td>Manage all business data. Cannot manage environment members or delete the environment.</td></tr>
+        <tr><td><span class="badge role-env-member">MEMBER</span></td><td>Create and update records (orders, inventory adjustments, nodes). Cannot delete records or change configuration.</td></tr>
+        <tr><td><span class="badge role-env-viewer">VIEWER</span></td><td>Read-only access to all environment data, including orders, inventory, analytics, and audit trail.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <p><strong>Effective access:</strong> A user's final access to an environment is the <em>highest</em> applicable role across all layers. A <code>SUPERADMIN</code> implicitly has full access to every environment. An <code>ORG_OWNER</code> has full access to every environment within that org even without an explicit env role.</p>
+  </div>
+</section>
+
+<section id="org-creation">
+  <h2><span class="section-num">29b</span> Creating an Organization &mdash; Step by Step</h2>
+  <p>An organization is a <strong>logical tenant container</strong>. No database is provisioned at this point &mdash; it is a pure control-plane record. Creating one is instantaneous.</p>
+
+  <h3>Via the UI (Platform Console)</h3>
+  <ol class="steps">
+    <li>
+      <div>
+        <strong>Navigate to Platform Console</strong>
+        <p>In the sidebar, click <strong>Platform</strong>. Visible only to <code>PLATFORM_OWNER</code> and <code>SUPERADMIN</code> users. Shows all organizations and a summary of their environments.</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <strong>Click &ldquo;New Organization&rdquo;</strong>
+        <p>Fill in <strong>Name</strong> (e.g. <em>Acme Corp</em>), <strong>Slug</strong> (e.g. <code>acme</code> &mdash; globally unique, pattern <code>^[a-z0-9][a-z0-9-]*[a-z0-9]$</code>), and optional description. The slug becomes the prefix for all database names in this org.</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <strong>Submit</strong>
+        <p><code>POST /organizations</code> &rarr; <code>201 Created</code>. Org appears in the list with zero environments. No database has been created yet.</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <strong>Add the first environment</strong>
+        <p>Click the org card, then <strong>New Environment</strong>. See the provisioning section below.</p>
+      </div>
+    </li>
+  </ol>
+
+  <h3>Via the API</h3>
+  <pre data-lang="bash">curl -X POST http://localhost:8001/organizations \
+  -H "Authorization: Bearer {platform_owner_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Acme Corp", "slug": "acme", "description": "Our first tenant"}'</pre>
+
+  <h3>Slug naming convention</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Resource</th><th>Pattern</th><th>Example (org=acme, env=dev)</th></tr></thead>
+      <tbody>
+        <tr><td>PostgreSQL DB</td><td><code>oms_{slug}_{env_slug}</code></td><td><code>oms_acme_dev</code></td></tr>
+        <tr><td>MongoDB Events DB</td><td><code>oms_events_{slug}_{env_slug}</code></td><td><code>oms_events_acme_dev</code></td></tr>
+        <tr><td>MongoDB AI DB</td><td><code>oms_ai_{slug}_{env_slug}</code></td><td><code>oms_ai_acme_dev</code></td></tr>
+        <tr><td>Elasticsearch prefix</td><td><code>{slug}_{env_slug}</code></td><td><code>acme_dev</code></td></tr>
+        <tr><td>Docker container (API)</td><td><code>oms_api_{slug}_{env_slug}</code></td><td><code>oms_api_acme_dev</code></td></tr>
+        <tr><td>Docker Compose file</td><td><code>docker-compose.{slug}_{env_slug}.yml</code></td><td><code>docker-compose.acme_dev.yml</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout warn">
+    <p><strong>Choose slugs carefully.</strong> Once an environment is provisioned, its database name is fixed. Short, lowercase, alphanumeric slugs work best: <code>acme</code>, <code>widgetco</code>, <code>retailer1</code>.</p>
+  </div>
+
+  <h3>Organizations API</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/organizations</code></td><td>Any</td><td>Superadmin: all orgs. Others: orgs where they have a role.</td></tr>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/organizations</code></td><td>Platform Owner / Superadmin</td><td>Create organization (instant, no DB provisioned)</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/organizations/{id}</code></td><td>Org Member+</td><td>Organization detail</td></tr>
+        <tr><td><span class="method method-patch">PATCH</span></td><td><code>/organizations/{id}</code></td><td>Org Admin+</td><td>Update name, description, is_active</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/organizations/{id}/members</code></td><td>Org Member+</td><td>List UserOrganizationRole records</td></tr>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/organizations/{id}/members</code></td><td>Org Admin+</td><td>Grant <code>{user_id, role}</code> org membership</td></tr>
+        <tr><td><span class="method method-delete">DELETE</span></td><td><code>/organizations/{id}/members/{uid}</code></td><td>Org Admin+</td><td>Revoke org membership</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="env-provisioning">
+  <h2><span class="section-num">29c</span> Provisioning an Environment &mdash; Step by Step</h2>
+  <p>An environment is where business data actually lives &mdash; orders, inventory, sourcing rules, connectors. Creating one triggers a full infrastructure provisioning sequence that runs asynchronously. The API returns <code>202 Accepted</code> with <code>status: "PROVISIONING"</code>; the UI polls every 5 seconds until status becomes <code>"ACTIVE"</code>.</p>
+
+  <h3>Via the UI (Environments page)</h3>
+  <ol class="steps">
+    <li>
+      <div>
+        <strong>Open the Environments page</strong>
+        <p>Click <strong>Environments</strong> in the sidebar. Lists all environments the current user can access, grouped by organization.</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <strong>Click &ldquo;New Environment&rdquo;</strong>
+        <p>Fill in: <strong>Organization</strong>, <strong>Name</strong> (e.g. <em>Development</em>), <strong>Slug</strong> (e.g. <code>dev</code>, unique within org), <strong>Environment Type</strong> (DEV/QA/STAGING/PROD), and optionally <strong>Set as default</strong>.</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <strong>Submit &mdash; provisioning begins</strong>
+        <p>Environment created with <code>status: PROVISIONING</code>. Background task starts. UI shows a spinner polling every 5 seconds.</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <strong>Wait for ACTIVE status</strong>
+        <p>Typical provisioning time: 5&ndash;15 seconds. The environment card turns green when <code>status = ACTIVE</code> and shows the <code>provisioned_at</code> timestamp.</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <strong>Generate Docker Compose file (for isolated deployment)</strong>
+        <p>Click <strong>Generate Docker Compose</strong> on the environment card. Downloads <code>docker-compose.acme_dev.yml</code> pre-configured with the correct database names, ports, and network settings.</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <strong>Set Deployment URL</strong>
+        <p>If the environment runs as a separate pod, set the <strong>Deployment URL</strong> field (e.g. <code>http://localhost:3463</code>). The environment switcher uses this for cross-origin pod redirects with seamless auth handoff.</p>
+      </div>
+    </li>
+  </ol>
+
+  <h3>Provisioning sequence (what happens in the background)</h3>
+  <div class="code-block">
+    <div class="code-title">app/database/env_registry.py &mdash; provision_environment()</div>
+    <pre>Step 1 -- Create PostgreSQL database
+  Raw asyncpg connection to postgres system DB
+  CREATE DATABASE oms_acme_dev;   (idempotent -- checks existence first)
+
+Step 2 -- Build SQLAlchemy engine
+  create_async_engine("postgresql+asyncpg://.../oms_acme_dev",
+    pool_size=5, max_overflow=10, pool_pre_ping=True, pool_recycle=3600)
+  Register: EnvironmentEngineRegistry._engines[env_id] = engine
+
+Step 3 -- Create all data-plane tables  (checkfirst=True -- skips if exists)
+  orders, order_items, fulfillment_allocations, shipments
+  inventory_items, inventory_adjustments, inventory_reservations
+  fulfillment_nodes, sourcing_rules
+  webhook_endpoints, webhook_events
+  connectors, connector_events, connector_inventory_mappings
+  ai_proposals, ai_experiments
+  sourcing_outcome_labels, custom_attribute_definitions, ui_widgets
+
+  NOT created here (stay in oms_db only):
+  users, user_groups, organizations, environments
+  user_environment_roles, user_organization_roles
+
+Step 4 -- Create MongoDB indexes
+  oms_events_acme_dev:
+    order_events -> compound (order_id, timestamp), index on event_type
+  oms_ai_acme_dev:
+    sourcing_outcomes -> order_id index
+    sourcing_patterns -> unique cluster_key index
+
+Step 5 -- Create Elasticsearch index template
+  PUT /_index_template/acme_dev_template
+  {"index_patterns": ["acme_dev_*"], "mappings": {...}}
+
+Step 6 -- Mark environment ACTIVE
+  UPDATE environments SET status='ACTIVE', provisioned_at=now()
+  WHERE id = &lt;env_id&gt;   (committed on control DB oms_db)</pre>
+  </div>
+
+  <div class="callout success">
+    <p><strong>Idempotent re-provisioning:</strong> If provisioning fails mid-way, call <code>POST /environments/{id}/provision</code> to retry safely. Every step can be repeated without side effects.</p>
+  </div>
+
+  <h3>Connection pool per environment</h3>
+  <div class="code-block">
+    <div class="code-title">Engine pool settings per environment</div>
+    <pre>pool_size=5        # 5 persistent connections
+max_overflow=10    # burst up to 15 total
+pool_pre_ping=True # discard stale connections
+pool_recycle=3600  # recycle every hour</pre>
+  </div>
+  <p>20 active environments = at most 300 PostgreSQL connections total &mdash; well within default <code>max_connections=100&ndash;500</code>.</p>
+
+  <h3>Environments API</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/environments</code></td><td>Any</td><td>List all environments the calling user can access</td></tr>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/environments</code></td><td>Platform Owner / Superadmin</td><td>Create + provision (202 Accepted, background task)</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/environments/{id}</code></td><td>Any with access</td><td>Detail + status + provisioned_at</td></tr>
+        <tr><td><span class="method method-patch">PATCH</span></td><td><code>/environments/{id}</code></td><td>Env OWNER+</td><td>Update name, is_default, base_url</td></tr>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/environments/{id}/provision</code></td><td>Platform Owner</td><td>Re-provision failed / archived environment (idempotent)</td></tr>
+        <tr><td><span class="method method-delete">DELETE</span></td><td><code>/environments/{id}</code></td><td>Platform Owner</td><td>Delete environment record + DROP the PostgreSQL database</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/environments/{id}/members</code></td><td>Env OWNER+</td><td>List UserEnvironmentRole records</td></tr>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/environments/{id}/members</code></td><td>Env OWNER+</td><td>Grant <code>{user_id, role}</code></td></tr>
+        <tr><td><span class="method method-delete">DELETE</span></td><td><code>/environments/{id}/members/{uid}</code></td><td>Env OWNER+</td><td>Revoke env access for a specific user</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="env-types">
+  <h2><span class="section-num">29d</span> Environment Types &amp; Lifecycle</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Type</th><th>Badge</th><th>Warning Banner</th><th>Typical Use</th></tr></thead>
+      <tbody>
+        <tr><td>DEV</td><td><span class="badge badge-blue">DEV</span></td><td>None</td><td>Developer testing, feature branches. Data can be reset freely.</td></tr>
+        <tr><td>QA</td><td><span class="badge badge-yellow">QA</span></td><td>None</td><td>Quality assurance, integration tests, UAT.</td></tr>
+        <tr><td>STAGING</td><td><span class="badge badge-orange">STAGING</span></td><td>None</td><td>Pre-production validation, load testing.</td></tr>
+        <tr><td>PROD</td><td><span class="badge badge-red">PROD</span></td><td><strong style="color:#f87171;">&#9888; Production &mdash; changes affect live customers</strong> (persistent red banner)</td><td>Live customer-facing environment.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Environment status lifecycle</h3>
+  <div class="pipeline">PROVISIONING --&gt; ACTIVE --&gt; SUSPENDED --&gt; ARCHIVED
+ (background)    (operational)  (503, data      (503, pool
+                                 preserved)      evicted)</div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Status</th><th>Meaning</th><th>API behaviour</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge badge-yellow">PROVISIONING</span></td><td>Database creation in progress</td><td>Middleware returns 503 for all data-plane requests</td></tr>
+        <tr><td><span class="badge badge-green">ACTIVE</span></td><td>Fully operational</td><td>All requests routed normally</td></tr>
+        <tr><td><span class="badge badge-orange">SUSPENDED</span></td><td>Temporarily disabled</td><td>503; data preserved intact</td></tr>
+        <tr><td><span class="badge badge-gray">ARCHIVED</span></td><td>Permanently disabled</td><td>503; connection pool evicted to free resources</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="env-members">
+  <h2><span class="section-num">29e</span> Managing Environment Members</h2>
+
+  <h3>Grant org membership (gives org-wide visibility)</h3>
+  <pre data-lang="bash">curl -X POST http://localhost:8001/organizations/{org_id}/members \
+  -H "Authorization: Bearer {admin_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": "abc123...", "role": "ORG_MEMBER"}'</pre>
+
+  <h3>Grant environment access</h3>
+  <pre data-lang="bash">curl -X POST http://localhost:8001/admin/users/{user_id}/env-roles \
+  -H "Authorization: Bearer {admin_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"env_id": "def456...", "role": "ADMIN"}'</pre>
+
+  <h3>View a user's full access</h3>
+  <pre data-lang="json">GET /admin/users/{user_id}/access
+{
+  "user_id": "...",
+  "platform_role": "USER",
+  "org_roles": [
+    {"org_id": "...", "org_name": "Acme Corp", "role": "ORG_MEMBER"}
+  ],
+  "env_roles": [
+    {"env_id": "...", "env_name": "Development",
+     "org_name": "Acme Corp", "env_type": "DEV", "role": "ADMIN"}
+  ]
+}</pre>
+
+  <h3>Admin Console access management endpoints</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/admin/users/{id}/access</code></td><td>Full access summary: platform role + all org roles + all env roles</td></tr>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/admin/users/{id}/org-roles</code></td><td>Grant/update org role: body <code>{org_id, role}</code></td></tr>
+        <tr><td><span class="method method-delete">DELETE</span></td><td><code>/admin/users/{id}/org-roles/{org_id}</code></td><td>Revoke org membership</td></tr>
+        <tr><td><span class="method method-post">POST</span></td><td><code>/admin/users/{id}/env-roles</code></td><td>Grant/update env role: body <code>{env_id, role}</code></td></tr>
+        <tr><td><span class="method method-delete">DELETE</span></td><td><code>/admin/users/{id}/env-roles/{env_id}</code></td><td>Revoke env access</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="env-switcher">
+  <h2><span class="section-num">29f</span> Environment Switcher &amp; Cross-Pod Auth</h2>
+
+  <h3>Switching environments</h3>
+  <p>The <strong>Environment Switcher</strong> lives in the top header bar, grouped by organization. On switch, the frontend:</p>
+  <ol>
+    <li>Stores the selected <code>env_id</code> in <code>localStorage('oms_environment_id')</code></li>
+    <li>Calls <code>queryClient.clear()</code> to flush all cached data from the previous environment</li>
+    <li>Re-fetches all active queries with the new environment header</li>
+    <li>If the environment has a <code>base_url</code> on a different origin, performs a cross-origin redirect with token handoff (no re-login)</li>
+  </ol>
+
+  <h3>How X-OMS-Environment works</h3>
+  <pre data-lang="typescript">axiosInstance.interceptors.request.use(config =&gt; {
+  const envId = localStorage.getItem('oms_environment_id')
+  if (envId) config.headers['X-OMS-Environment'] = envId
+  const token = localStorage.getItem('oms_auth_token')
+  if (token) config.headers['Authorization'] = `Bearer ${token}`
+  return config
+})</pre>
+
+  <h3>Cross-pod auth handoff (no re-login on switch)</h3>
+  <div class="code-block">
+    <div class="code-title">frontend/src/main.tsx &mdash; bootstrap from URL before React renders</div>
+    <pre>;(function bootstrapFromUrl() {
+  const params = new URLSearchParams(window.location.search)
+  const token   = params.get('_oms_token')
+  const userRaw = params.get('_oms_user')
+  if (token &amp;&amp; userRaw) {
+    localStorage.setItem('oms_auth_token', token)
+    localStorage.setItem('oms_auth_user', userRaw)
+    params.delete('_oms_token'); params.delete('_oms_user')
+    const clean = params.toString()
+    window.history.replaceState({}, '', window.location.pathname +
+      (clean ? '?' + clean : '') + window.location.hash)
+  }
+})()</pre>
+  </div>
+  <div class="callout">
+    <p><strong>Security note:</strong> The token is a short-lived JWT transferred once via HTTPS redirect and immediately stripped from the URL. Subsequent requests use the token from localStorage.</p>
+  </div>
+</section>
+
+<section id="env-deployment">
+  <h2><span class="section-num">29g</span> Deploying a Tenant Environment (Docker Compose)</h2>
+  <p>Each environment can run as an isolated Docker Compose stack &mdash; its own API and frontend containers &mdash; attached to the shared infrastructure via the <code>oms_default</code> external network.</p>
+
+  <h3>Example: docker-compose.acme_dev.yml</h3>
+  <pre data-lang="yaml">version: "3.9"
+
+services:
+  api_acme_dev:
+    build: { context: ., dockerfile: Dockerfile }
+    container_name: oms_api_acme_dev
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    environment:
+      - TENANT_SLUG=acme
+      - ENVIRONMENT=dev
+      - DATABASE_URL=postgresql+asyncpg://oms_user:oms_pass@postgres:5432/oms_acme_dev
+      - SYNC_DATABASE_URL=postgresql+psycopg2://oms_user:oms_pass@postgres:5432/oms_acme_dev
+      - CONTROL_DATABASE_URL=postgresql+asyncpg://oms_user:oms_pass@postgres:5432/oms_db
+      - MONGODB_DB=oms_events_acme_dev
+      - MONGODB_AI_DB=oms_ai_acme_dev
+      - FRONTEND_URL=http://localhost:3463
+    ports: ["8463:8000"]
+    networks: [oms_default]
+
+  frontend_acme_dev:
+    build: { context: ./frontend, dockerfile: Dockerfile }
+    container_name: oms_frontend_acme_dev
+    environment:
+      - API_HOST=oms_api_acme_dev
+    ports: ["3463:80"]
+    networks: [oms_default]
+    depends_on: [api_acme_dev]
+
+networks:
+  oms_default:
+    external: true
+    name: oms_default</pre>
+
+  <div class="callout">
+    <p><strong>Key points:</strong> <code>DATABASE_URL</code> points at the tenant DB. <code>CONTROL_DATABASE_URL</code> points back at <code>oms_db</code> so this pod can verify JWTs and read org/env metadata. Both containers join <code>oms_default</code> to access shared infra without re-exposing ports. The nginx frontend uses <code>${API_HOST}</code> via envsubst to proxy <code>/api/*</code> to the correct API container.</p>
+  </div>
+
+  <h3>Start the tenant stack</h3>
+  <pre data-lang="bash">docker-compose -f docker-compose.acme_dev.yml up -d --build
+
+# Then set the Deployment URL:
+# Platform Console &gt; Environments &gt; Acme Dev &gt; Deployment URL = http://localhost:3463</pre>
+
+  <h3>Delete an environment (with data)</h3>
+  <ol class="steps">
+    <li>
+      <div>
+        <strong>Stop the tenant stack</strong>
+        <pre data-lang="bash">docker-compose -f docker-compose.acme_dev.yml down</pre>
+      </div>
+    </li>
+    <li>
+      <div>
+        <strong>Delete from the UI</strong>
+        <p>Environments page &rarr; trash icon on the environment card &rarr; confirm. Calls <code>DELETE /environments/{id}</code>, which drops the PostgreSQL database and removes all control-plane records. <strong>This is irreversible.</strong></p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <strong>Remove the Compose file</strong>
+        <pre data-lang="bash">rm docker-compose.acme_dev.yml</pre>
+      </div>
+    </li>
+  </ol>
+</section>
+
+<section id="request-routing">
+  <h2><span class="section-num">29h</span> How Requests Are Routed to the Right Database</h2>
+  <p>Every API request carries an <code>X-OMS-Environment</code> HTTP header. The <code>EnvironmentMiddleware</code> resolves it to the correct database before any route handler runs.</p>
+
+  <div class="code-block">
+    <div class="code-title">Request lifecycle &mdash; EnvironmentMiddleware &rarr; get_db() &rarr; route handler</div>
+    <pre>Browser
+  X-OMS-Environment: &lt;env_uuid&gt;
+  |
+EnvironmentMiddleware (app/middleware/environment.py)
+  |
+  +-- Exempt paths (bypass resolution):
+  |   /health, /docs, /redoc, /openapi.json
+  |   /auth/*, /testing, /connectors/{id}/webhook
+  |
+  +-- 1. Redis: GET env:&lt;env_uuid&gt;  TTL=60s
+  |      HIT  -&gt; deserialize cached env object (lock-free hot path)
+  |      MISS -&gt; SELECT * FROM environments WHERE id=?  (control DB)
+  |             cache -&gt; SET env:&lt;env_uuid&gt; EX 60
+  |
+  +-- 2. env.status != ACTIVE -&gt; return 503 "Environment unavailable"
+  |
+  +-- 3. request.state.environment = env -&gt; call_next(request)
+
+Route handler: db = Depends(get_db)
+  |
+  +-- env.db_name == "oms_db"  (default production)
+  |    -&gt; yield from main session factory
+  |
+  +-- env-specific database
+       -&gt; registry.get_or_create_engine(env)  (lock-free if already cached)
+       -&gt; yield session from env-specific session factory
+
+All SQL runs against oms_acme_dev. Zero code changes in business logic.</pre>
+  </div>
+
+  <h3>Which routes use which database</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Router</th><th>Dependency</th><th>Database</th></tr></thead>
+      <tbody>
+        <tr><td><code>/auth/*</code></td><td><code>get_db</code></td><td><code>oms_db</code> (users table is control-plane only)</td></tr>
+        <tr><td><code>/admin</code></td><td><code>get_db</code></td><td><code>oms_db</code></td></tr>
+        <tr><td><code>/organizations</code></td><td><code>get_control_db</code></td><td><code>oms_db</code> (must bypass env routing)</td></tr>
+        <tr><td><code>/environments</code></td><td><code>get_control_db</code></td><td><code>oms_db</code></td></tr>
+        <tr><td><code>/orders</code></td><td><code>get_db</code> (env-aware)</td><td><code>oms_{org}_{env}</code></td></tr>
+        <tr><td><code>/inventory</code></td><td><code>get_db</code> (env-aware)</td><td><code>oms_{org}_{env}</code></td></tr>
+        <tr><td><code>/nodes</code></td><td><code>get_db</code> (env-aware)</td><td><code>oms_{org}_{env}</code></td></tr>
+        <tr><td><code>/sourcing-rules</code></td><td><code>get_db</code> (env-aware)</td><td><code>oms_{org}_{env}</code></td></tr>
+        <tr><td><code>/connectors</code></td><td><code>get_db</code> (env-aware)</td><td><code>oms_{org}_{env}</code></td></tr>
+        <tr><td><code>/architect</code></td><td><code>get_db</code> (env-aware)</td><td><code>oms_{org}_{env}</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="data-isolation">
+  <h2><span class="section-num">29i</span> Data Isolation &amp; Backward Compatibility</h2>
+
+  <h3>Database-per-environment isolation</h3>
+  <div class="code-block">
+    <div class="code-title">Isolation model comparison</div>
+    <pre>Row-level security (shared table + tenant_id column)
+  &gt; Weakest. A missing WHERE clause leaks all tenant data.
+  &gt; OMS does NOT use this.
+
+Schema-per-tenant (shared DB, different schemas)
+  &gt; Medium. Connection pool shared; search_path misconfiguration leaks data.
+  &gt; OMS does NOT use this.
+
+Database-per-tenant  &lt;--  OMS uses this for each environment
+  &gt; Strongest. Separate connection pool, separate WAL, separate backups.
+  &gt; No SQL query can cross the database boundary.</pre>
+  </div>
+
+  <h3>Backward compatibility &mdash; zero breaking changes</h3>
+  <p>The first startup seeds a "Default Organization" with a "Production" environment pointing at the existing <code>oms_db</code> database. All existing data (orders, inventory, nodes, sourcing rules) is untouched. Requests without an <code>X-OMS-Environment</code> header fall back to the environment where <code>is_default=true</code>, which points at <code>oms_db</code>. Existing JWT tokens and API clients all continue to work.</p>
+
+  <h3>Celery &mdash; environment-aware fan-out</h3>
+  <div class="code-block">
+    <div class="code-title">app/workers/sourcing.py &mdash; fan-out pattern</div>
+    <pre>@celery_app.task
+def source_pending_orders_fanout():
+    # Beat fires this every 2 min. One task per active environment.
+    env_ids = list_active_environment_ids()   # sync SQL on oms_db
+    for env_id in env_ids:
+        source_pending_orders.delay(env_id)
+
+@celery_app.task
+def source_pending_orders(environment_id: str = ""):
+    # Empty env_id = backward-compat fallback to settings.DATABASE_URL
+    db_url = get_env_db_url(environment_id)
+    # ... unchanged sourcing logic ...</pre>
+  </div>
+
+  <h3>MongoDB &amp; Elasticsearch per environment</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Environment</th><th>MongoDB Events DB</th><th>MongoDB AI DB</th><th>ES Prefix</th></tr></thead>
+      <tbody>
+        <tr><td>Default (oms_db)</td><td><code>oms_events</code></td><td><code>oms_ai_learning</code></td><td><code>default_prod</code></td></tr>
+        <tr><td>acme / dev</td><td><code>oms_events_acme_dev</code></td><td><code>oms_ai_acme_dev</code></td><td><code>acme_dev</code></td></tr>
+        <tr><td>acme / prod</td><td><code>oms_events_acme_prod</code></td><td><code>oms_ai_acme_prod</code></td><td><code>acme_prod</code></td></tr>
+        <tr><td>widgetco / qa</td><td><code>oms_events_widgetco_qa</code></td><td><code>oms_ai_widgetco_qa</code></td><td><code>widgetco_qa</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+
+</main>
+</div>
+
+<script>
+  // Active nav highlighting based on scroll position
+  const sections = document.querySelectorAll('section[id]')
+  const navLinks = document.querySelectorAll('nav a[href^="#"]')
+
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.getAttribute('id')
+        navLinks.forEach(link => {
+          link.classList.toggle('active', link.getAttribute('href') === '#' + id)
+        })
+      }
+    })
+  }, { rootMargin: '-56px 0px -60% 0px', threshold: 0 })
+
+  sections.forEach(s => observer.observe(s))
+</script>
+
+</body>
+</html>

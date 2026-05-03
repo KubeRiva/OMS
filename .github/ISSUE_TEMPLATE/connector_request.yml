@@ -1,0 +1,54 @@
+name: Connector Request
+description: Request a new platform or carrier connector
+labels: ["connector: new", "enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before building a connector, open this request so we can confirm the interface and avoid duplicate work.
+        See the [connector guide in CONTRIBUTING.md](../CONTRIBUTING.md#building-a-connector) for implementation details.
+
+  - type: input
+    id: platform
+    attributes:
+      label: Platform or carrier name
+      placeholder: "e.g. WooCommerce, Magento, FedEx, DHL"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Connector type
+      options:
+        - E-commerce platform (orders in, fulfillment out)
+        - Carrier (label generation, tracking)
+        - ERP / WMS integration
+        - Payment processor
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: usecase
+    attributes:
+      label: Use case
+      description: How would you use this connector? What volume / environment?
+    validations:
+      required: true
+
+  - type: textarea
+    id: api
+    attributes:
+      label: API / webhook details
+      description: Link to the platform's developer docs. Note whether it uses webhooks, polling, or both.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution intent
+      options:
+        - label: I am willing to build this connector and submit a PR
+        - label: I can help test this connector once built

@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "kuberiva-oms"
+version = "0.1.0"
+description = "Open-source AI-native order management system"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.12"
+keywords = ["oms", "order-management", "ecommerce", "fulfillment", "ai", "shopify", "amazon"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Office/Business",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+dependencies = [
+    "typer>=0.12.0",
+    "rich>=13.0.0",
+    "httpx>=0.27.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/KubeRiva/OMS"
+Repository = "https://github.com/KubeRiva/OMS"
+Issues = "https://github.com/KubeRiva/OMS/issues"
+Changelog = "https://github.com/KubeRiva/OMS/blob/main/CHANGELOG.md"
+
+[project.scripts]
+kuberiva = "kuberiva_oms.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["kuberiva_oms"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"kuberiva_oms/assets/docker-compose.yml" = "kuberiva_oms/assets/docker-compose.yml"
+"kuberiva_oms/assets/.env.example" = "kuberiva_oms/assets/.env.example"

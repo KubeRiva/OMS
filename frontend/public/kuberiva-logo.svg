@@ -1,0 +1,48 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" fill="none">
+  <!-- Define gradients -->
+  <defs>
+    <linearGradient id="mintGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6EE7B7;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#10B981;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="indigoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#818CF8;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#6366F1;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background circle -->
+  <circle cx="100" cy="100" r="95" fill="#0A0A0F" stroke="#6EE7B7" stroke-width="2" opacity="0.3"/>
+
+  <!-- Cube representing Kubernetes/containers -->
+  <g>
+    <!-- Front face -->
+    <path d="M 70 60 L 100 40 L 130 60 L 100 80 Z" fill="url(#mintGradient)" opacity="0.9"/>
+
+    <!-- Left face -->
+    <path d="M 70 60 L 70 110 L 100 130 L 100 80 Z" fill="url(#mintGradient)" opacity="0.7"/>
+
+    <!-- Right face -->
+    <path d="M 130 60 L 100 80 L 100 130 L 130 110 Z" fill="url(#indigoGradient)" opacity="0.8"/>
+  </g>
+
+  <!-- Flowing river element (curved lines around the cube) -->
+  <g stroke="url(#mintGradient)" stroke-width="2.5" stroke-linecap="round" fill="none">
+    <!-- Top wave -->
+    <path d="M 50 75 Q 75 55 100 65 Q 125 75 150 60" opacity="0.6"/>
+
+    <!-- Middle wave -->
+    <path d="M 45 100 Q 75 90 100 105 Q 125 120 155 100" opacity="0.7"/>
+
+    <!-- Bottom wave -->
+    <path d="M 50 135 Q 75 145 100 135 Q 125 125 150 145" opacity="0.6"/>
+  </g>
+
+  <!-- Glowing accent dots -->
+  <circle cx="100" cy="100" r="3" fill="#6EE7B7" opacity="0.6"/>
+  <circle cx="130" cy="75" r="2" fill="#818CF8" opacity="0.5"/>
+  <circle cx="70" cy="90" r="2" fill="#6EE7B7" opacity="0.5"/>
+
+  <!-- Subtle glow effect -->
+  <circle cx="100" cy="100" r="90" fill="none" stroke="#6EE7B7" stroke-width="1" opacity="0.1"/>
+</svg>

@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    name: Python tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: oms_user
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_DB: oms_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+
+      redis:
+        image: redis:7.2-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        env:
+          DATABASE_URL: postgresql+asyncpg://oms_user:testpassword@localhost:5432/oms_db
+          SYNC_DATABASE_URL: postgresql+psycopg2://oms_user:testpassword@localhost:5432/oms_db
+          MONGODB_URL: mongodb://localhost:27017/oms_events
+          MONGODB_DB: oms_events
+          MONGODB_AI_DB: oms_ai_learning
+          REDIS_URL: redis://localhost:6379/0
+          ELASTICSEARCH_URL: http://localhost:9200
+          SECRET_KEY: ci-test-secret-key-not-for-production-use-at-all
+          API_KEY: ci-test-api-key-32chars-padding-ok
+          WEBHOOK_SECRET: ci-test-webhook-secret-padding-ok
+          TEST_API_KEY: ci-test-key
+          PUBLIC_BASE_URL: http://localhost:8001
+          FRONTEND_URL: http://localhost:3001
+          ANTHROPIC_API_KEY: ""
+        run: |
+          PYTHONPATH=. pytest tests/ -v --tb=short
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install linting tools
+        run: pip install ruff
+
+      - name: Run ruff
+        run: ruff check app/ --select E,F,W --ignore E501

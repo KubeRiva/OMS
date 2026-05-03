@@ -1,0 +1,198 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: oms_postgres
+    environment:
+      POSTGRES_USER: oms_user
+      POSTGRES_PASSWORD: oms_pass
+      POSTGRES_DB: oms_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oms_user -d oms_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mongodb:
+    image: mongo:7.0
+    container_name: oms_mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: oms_user
+      MONGO_INITDB_ROOT_PASSWORD: oms_pass
+      MONGO_INITDB_DATABASE: oms_events
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: oms_redis
+    command: redis-server --requirepass oms_pass
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "oms_pass", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  elasticsearch:
+    image: elasticsearch:8.12.0
+    container_name: oms_elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    # Ports intentionally NOT exposed to the host — the API container reaches
+    # Elasticsearch over the internal Docker network (http://elasticsearch:9200).
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test:
+        ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: oms_api
+    restart: unless-stopped
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://oms_user:oms_pass@postgres:5432/oms_db
+      - MONGODB_URL=mongodb://oms_user:oms_pass@mongodb:27017/oms_events?authSource=admin
+      - REDIS_URL=redis://:oms_pass@redis:6379/0
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - CELERY_BROKER_URL=redis://:oms_pass@redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://:oms_pass@redis:6379/2
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    ports:
+      - "8001:8000"
+    volumes:
+      - .:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: oms_celery_worker
+    restart: unless-stopped
+    command: celery -A app.workers.celery_app worker --loglevel=info -Q sourcing,fulfillment,carrier,notifications,webhooks,connectors --concurrency=4
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://oms_user:oms_pass@postgres:5432/oms_db
+      - SYNC_DATABASE_URL=postgresql+psycopg2://oms_user:oms_pass@postgres:5432/oms_db
+      - MONGODB_URL=mongodb://oms_user:oms_pass@mongodb:27017/oms_events?authSource=admin
+      - REDIS_URL=redis://:oms_pass@redis:6379/0
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - CELERY_BROKER_URL=redis://:oms_pass@redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://:oms_pass@redis:6379/2
+    volumes:
+      - .:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: oms_celery_beat
+    restart: unless-stopped
+    command: celery -A app.workers.celery_app beat --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://oms_user:oms_pass@postgres:5432/oms_db
+      - SYNC_DATABASE_URL=postgresql+psycopg2://oms_user:oms_pass@postgres:5432/oms_db
+      - MONGODB_URL=mongodb://oms_user:oms_pass@mongodb:27017/oms_events?authSource=admin
+      - REDIS_URL=redis://:oms_pass@redis:6379/0
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - CELERY_BROKER_URL=redis://:oms_pass@redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://:oms_pass@redis:6379/2
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: oms_flower
+    restart: unless-stopped
+    command: >
+      celery -A app.workers.celery_app flower --port=5555
+      --basic_auth=${FLOWER_USER:-admin}:${FLOWER_PASSWORD:?FLOWER_PASSWORD must be set}
+    environment:
+      - CELERY_BROKER_URL=redis://:oms_pass@redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://:oms_pass@redis:6379/2
+      - FLOWER_USER=${FLOWER_USER:-admin}
+      - FLOWER_PASSWORD=${FLOWER_PASSWORD:?FLOWER_PASSWORD must be set}
+    ports:
+      - "5556:5555"
+    depends_on:
+      - redis
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_SHOPIFY_API_KEY: ${SHOPIFY_API_KEY:-}
+    container_name: oms_frontend
+    restart: unless-stopped
+    environment:
+      - API_HOST=oms_api
+    ports:
+      - "3001:80"
+    depends_on:
+      - api
+
+  # ── Public tunnel (optional) ─────────────────────────────────────────────────
+  # Start with: docker compose --profile tunnel up -d ngrok
+  # View your public URL: docker compose logs ngrok
+  # Or open: http://localhost:4040  (ngrok dashboard)
+  # Requires NGROK_AUTHTOKEN in your .env  (free at https://dashboard.ngrok.com)
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: oms_ngrok
+    profiles: ["tunnel"]
+    command: http api:8000 --log=stdout
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+    ports:
+      - "4040:4040"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  mongodb_data:
+  redis_data:
+  es_data:
