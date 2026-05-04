@@ -359,7 +359,7 @@ def source_pending_orders(environment_id: str = ""):
         for order in orders_to_source:
             logger.info(f"Queuing source_order for unsourced order {order.order_number} (id={order.id})")
             source_order.delay(order.id, environment_id)
-            
+
     except Exception as e:
         logger.error(f"Error in source_pending_orders: {str(e)}", exc_info=True)
     finally:

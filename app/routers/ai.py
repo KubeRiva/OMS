@@ -13,16 +13,16 @@ from app.dependencies.auth import get_current_user, require_superadmin
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 
-limiter = Limiter(key_func=get_remote_address)
-
 from app.database.postgres import async_session_factory
 from app.models.postgres.order_models import (
-    Order, OrderItem, FulfillmentAllocation, Shipment,
-    OrderStatus, OrderChannel, FulfillmentType,
+    Order, OrderItem, FulfillmentAllocation,
+    OrderStatus, OrderChannel,
 )
 from app.models.postgres.inventory_models import InventoryItem
 from app.models.postgres.node_models import FulfillmentNode
 from app.models.postgres.sourcing_rule_models import SourcingRule
+
+limiter = Limiter(key_func=get_remote_address)
 
 logger = logging.getLogger(__name__)
 

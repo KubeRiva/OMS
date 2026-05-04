@@ -47,14 +47,13 @@ def _get_order_payload(session, order_id: str) -> dict:
 def dispatch_webhook(self, order_id: str, event_type: str):
     """Find all active endpoints subscribed to event_type and deliver."""
     from app.models.postgres.order_models import WebhookEndpoint, WebhookEvent
-    from app.config import settings
 
     session, engine = _get_sync_session()
     svc = WebhookService()
 
     try:
         endpoints = session.query(WebhookEndpoint).filter(
-            WebhookEndpoint.is_active == True
+            WebhookEndpoint.is_active
         ).all()
 
         if not endpoints:

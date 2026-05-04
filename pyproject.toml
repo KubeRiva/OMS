@@ -44,3 +44,9 @@ packages = ["kuberiva_oms"]
 [tool.hatch.build.targets.wheel.force-include]
 "kuberiva_oms/assets/docker-compose.yml" = "kuberiva_oms/assets/docker-compose.yml"
 "kuberiva_oms/assets/.env.example" = "kuberiva_oms/assets/.env.example"
+
+[tool.ruff.lint]
+ignore = [
+    "E402",  # Module level import not at top — common FastAPI pattern (routers after app init)
+    "F401",  # Unused imports — addressed incrementally; SQLAlchemy models import for side-effects
+]
