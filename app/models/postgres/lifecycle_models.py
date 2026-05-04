@@ -1,9 +1,8 @@
 """Lifecycle models — configurable per-fulfillment-type order pipelines."""
 import uuid
-import enum
 from sqlalchemy import (
     Column, String, Boolean, Integer, Float, Text, DateTime,
-    ForeignKey, JSON, Index, Enum as SAEnum,
+    ForeignKey, JSON, Index,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship

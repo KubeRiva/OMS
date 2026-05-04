@@ -1,9 +1,8 @@
 """Connector models: integrations with external platforms (Shopify, WooCommerce, etc.)."""
 import uuid
 import enum
-from datetime import datetime
 from sqlalchemy import (
-    Column, String, Boolean, DateTime, Integer,
+    Column, String, DateTime, Integer,
     Enum as SAEnum, Text, ForeignKey, Index, JSON, UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID

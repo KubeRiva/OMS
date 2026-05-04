@@ -14,7 +14,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 from app.config import settings
-from app.core.security import hash_password, verify_token, verify_token_async
+from app.core.security import hash_password, verify_token_async
 from app.database.postgres import init_db, async_session_factory
 from app.database.mongodb import connect_to_mongo, close_mongo_connection
 from app.database.redis_client import init_redis, close_redis
@@ -391,12 +391,12 @@ app.add_middleware(
 )
 
 # Plan tier enforcement (checks order/warehouse/user limits per PLAN_TIER)
-from app.middleware.plan_tier import PlanTierMiddleware
+from app.middleware.plan_tier import PlanTierMiddleware  # noqa: E402
 app.add_middleware(PlanTierMiddleware)
 
 # Environment resolution — reads X-OMS-Environment header, resolves to Environment
 # record, stores in request.state.environment for env-aware get_db()
-from app.middleware.environment import EnvironmentMiddleware
+from app.middleware.environment import EnvironmentMiddleware  # noqa: E402
 app.add_middleware(EnvironmentMiddleware)
 
 _EXEMPT_PREFIXES = (
@@ -573,11 +573,11 @@ async def root():
 # Routers
 # ---------------------------------------------------------------------------
 
-from app.routers import orders, inventory, sourcing_rules, nodes, search, analytics, webhooks, ai, connectors
-from app.routers import auth, admin, monitoring, performance, testing, architect, ops
-from app.routers import organizations, environments, lifecycles
-from app.routers import shopify_oauth
-from app.routers import shopify_billing
+from app.routers import orders, inventory, sourcing_rules, nodes, search, analytics, webhooks, ai, connectors  # noqa: E402
+from app.routers import auth, admin, monitoring, performance, testing, architect, ops  # noqa: E402
+from app.routers import organizations, environments, lifecycles  # noqa: E402
+from app.routers import shopify_oauth  # noqa: E402
+from app.routers import shopify_billing  # noqa: E402
 
 app.include_router(auth.router)
 app.include_router(admin.router)

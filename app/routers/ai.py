@@ -10,9 +10,10 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from app.dependencies.auth import get_current_user, require_superadmin
 
-limiter = Limiter(key_func=get_remote_address)
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
+
+limiter = Limiter(key_func=get_remote_address)
 
 from app.database.postgres import async_session_factory
 from app.models.postgres.order_models import (

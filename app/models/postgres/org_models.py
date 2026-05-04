@@ -4,7 +4,6 @@ All three tables live in oms_db alongside users/user_groups.
 """
 import enum
 import uuid
-from datetime import datetime, timezone
 
 from sqlalchemy import (
     Boolean,

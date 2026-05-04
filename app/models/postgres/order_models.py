@@ -2,7 +2,6 @@
 Core order models: Order, OrderItem, FulfillmentAllocation, Shipment, etc.
 """
 import uuid
-from datetime import datetime
 from sqlalchemy import (
     Column, String, Float, Boolean, DateTime, Integer,
     Enum as SAEnum, Text, ForeignKey, Index, JSON, Numeric
@@ -180,17 +179,17 @@ class OrderItem(Base):
     sku = Column(String(100), nullable=False, index=True)
     product_name = Column(String(300), nullable=False)
     quantity = Column(Integer, nullable=False)
-    
+
     # Quantity breakdown by status
     quantity_pending = Column(Integer, default=0)       # Not yet allocated (waiting for sourcing)
     quantity_allocated = Column(Integer, default=0)     # Allocated to nodes but not shipped
     quantity_backordered = Column(Integer, default=0)   # Could not be allocated (insufficient inventory)
     quantity_shipped = Column(Integer, default=0)       # Shipped to customer
     quantity_delivered = Column(Integer, default=0)     # Delivered to customer
-    
+
     # Legacy field (keep for backward compatibility)
     quantity_fulfilled = Column(Integer, default=0)
-    
+
     status = Column(SAEnum(OrderItemStatus), default=OrderItemStatus.PENDING)
     unit_price = Column(Numeric(12, 2), nullable=False)
     discount_amount = Column(Numeric(12, 2), default=0)

@@ -63,7 +63,7 @@ def start_picking(self, order_id: str, environment_id: str = ""):
     CRITICAL: Validates order state and allocation consistency before transition.
     """
     from app.models.postgres.order_models import Order, FulfillmentAllocation, OrderStatus, AllocationStatus
-    from app.models.postgres import lifecycle_models  # noqa: FK lifecycles.id must be in metadata
+    from app.models.postgres import lifecycle_models  # noqa: F401
 
     session, engine = _get_sync_session(environment_id)
     try:
@@ -161,7 +161,7 @@ def start_picking(self, order_id: str, environment_id: str = ""):
 def complete_packing(self, order_id: str, environment_id: str = ""):
     """Transition order PACKING → READY_TO_SHIP or READY_FOR_PICKUP per lifecycle."""
     from app.models.postgres.order_models import Order, FulfillmentAllocation, OrderStatus, AllocationStatus
-    from app.models.postgres import lifecycle_models  # noqa: FK lifecycles.id must be in metadata
+    from app.models.postgres import lifecycle_models  # noqa: F401
     from app.services.lifecycle_engine import (
         resolve_lifecycle_sync, get_post_packing_status, get_action_for_status,
         should_book_carrier, ACTION_BOOK_SHIPMENT, ACTION_SEND_PICKUP_READY,

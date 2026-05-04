@@ -2,10 +2,9 @@
 Inventory models: per-node stock levels, reservations, adjustments.
 """
 import uuid
-from datetime import datetime
 from sqlalchemy import (
     Column, String, Integer, Float, Boolean, DateTime,
-    Enum as SAEnum, Text, ForeignKey, Index, UniqueConstraint, JSON
+    Enum as SAEnum, Text, ForeignKey, Index, UniqueConstraint
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
