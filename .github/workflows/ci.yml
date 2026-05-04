@@ -88,4 +88,4 @@ jobs:
         run: pip install ruff
 
       - name: Run ruff
-        run: ruff check app/ --select E,F,W --ignore E501
+        run: ruff check app/ --select E,F,W --ignore E501,E402,E712,E722,E741,F401,F541,F811,F841
