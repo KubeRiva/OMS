@@ -25,7 +25,7 @@
 
 KubeRiva OMS is a **production-grade, async-first order management system** built for mid-market e-commerce teams that have outgrown Shopify's native fulfillment but can't justify pricing for any leading OMS provider.
 
-- **AI-native sourcing** — 7 strategies including `AI_ADAPTIVE` (Claude Haiku scores fulfillment nodes per order using historical delivery rates, cost, and backorder data) with a full outcome-labeling feedback loop
+- **AI-native sourcing** — 7 strategies including `AI_ADAPTIVE` (an LLM scores fulfillment nodes per order using historical delivery rates, cost, and backorder data) with a full outcome-labeling feedback loop. Ships with Claude Haiku by default; [bring your own LLM](#74-bring-your-own-llm)
 - **Multi-tenant by default** — each organization gets its own isolated PostgreSQL data-plane database, provisioned automatically
 - **Connector ecosystem** — bidirectional Shopify and Amazon SP-API out of the box; pluggable framework for WooCommerce, Magento, FedEx, UPS, and more
 
@@ -141,7 +141,7 @@ Want a connector that's not listed? [Open a connector request](https://github.co
 | Search | Elasticsearch 8.12 |
 | Task queue | Celery 5.4 — 7 queues |
 | Frontend | React 18, TypeScript, Vite, TailwindCSS, TanStack Query v5 |
-| AI | Anthropic Claude Haiku (AI_ADAPTIVE sourcing) |
+| AI | LLM-agnostic (ships with Claude Haiku `4-5` by default — [swappable](#74-bring-your-own-llm)) |
 | Containers | Docker Compose (9 services) |
 
 ---
@@ -445,7 +445,7 @@ OMS/
 | Cache / Queue | Redis 7.2 | Celery broker/backend, cache, rate-limiting |
 | Search | Elasticsearch 8.12 | Full-text order and product search |
 | Task queue | Celery 5.4 + Flower | Async pipeline workers, beat scheduler |
-| AI / LLM | KubeAI claude-haiku-4-5-20251001 (Anthropic) | AI node scoring, NL → proposals |
+| AI / LLM | LLM-agnostic — default: `claude-haiku-4-5-20251001` (Anthropic) | AI node scoring, NL → proposals |
 | Validation | Pydantic v2 | Request/response schemas, settings |
 | Containers | Docker Compose | All 8 services in one command |
 | HMAC signing | hashlib + hmac (stdlib) | Webhook payload integrity |
@@ -849,11 +849,11 @@ Greedy algorithm that assigns each SKU to the cheapest eligible node:
 4. Enforces `max_split_nodes` limit
 
 #### `AI_ADAPTIVE`
-Uses KubeAI claude-haiku-4-5-20251001 to score candidate nodes based on historical patterns and rolling performance data. KubeAI receives the order context (channel, region, amount, fulfillment type), the top-3 matching historical pattern clusters, 7-day node performance metrics, and a list of candidate nodes. It responds with a JSON array of `{node_id, score, reason}`.
+Uses an LLM (default: `claude-haiku-4-5-20251001`) to score candidate nodes based on historical patterns and rolling performance data. The LLM receives the order context (channel, region, amount, fulfillment type), the top-3 matching historical pattern clusters, 7-day node performance metrics, and a list of candidate nodes. It responds with a JSON array of `{node_id, score, reason}`.
 
 **Fallback to `DISTANCE_OPTIMAL` when:**
 - Best matching pattern has < 10 samples
-- KubeAI API call fails or returns invalid JSON
+- LLM API call fails or returns invalid JSON
 - Maximum AI score across all candidates < 0.4
 
 **Final score blend:** `0.6 × ai_score + 0.4 × rule_score`
@@ -921,12 +921,32 @@ Example: `WEB|NY|100-250|SHIP_TO_HOME`
 1. Extracts order features and computes the cluster key
 2. Finds the top-3 matching `sourcing_patterns` from MongoDB
 3. Loads rolling 7-day `node_performance_metrics` for each candidate
-4. Sends a structured prompt to KubeAI with order context + patterns + node metrics
+4. Sends a structured prompt to the configured LLM with order context + patterns + node metrics
 5. Parses the JSON response: `[{node_id, score, reason}]`
 6. Blends AI scores with rule-based scores: `0.6 × ai + 0.4 × rule`
 7. Falls back to `DISTANCE_OPTIMAL` on any error or low-confidence result
 
-### 7.4 Pattern Discovery
+### 7.4 Bring Your Own LLM
+
+KubeRiva OMS ships with **Anthropic Claude** as the default LLM provider. You are free to swap in any LLM that fits your enterprise agreements or infrastructure constraints. The LLM is used in three places:
+
+| File | Purpose | Default model |
+|---|---|---|
+| `app/services/ai_sourcing.py` | `AI_ADAPTIVE` node scoring (structured JSON output) | `claude-haiku-4-5-20251001` |
+| `app/routers/ai.py` | AI Assistant chat interface (streaming) | `claude-sonnet-4-6` |
+| `app/routers/ops.py` | Ops assistant / natural-language commands (streaming) | `claude-haiku-4-5-20251001` |
+
+**To swap the LLM:**
+
+1. Replace the `anthropic.AsyncAnthropic` client instantiation in each file above with your provider's SDK or an OpenAI-compatible client pointed at your endpoint.
+2. Update `ANTHROPIC_API_KEY` in your `.env` to whatever key variable your provider requires.
+3. Adjust the `model=` string to match your provider's model identifier.
+
+**Community tip:** [LiteLLM](https://github.com/BerriAI/litellm) provides a single unified interface to Anthropic, OpenAI, Azure, Ollama, vLLM, Bedrock, Groq, and 100+ other providers. Adding it lets you switch providers by changing a single env var without touching application code. A PR wiring LiteLLM into the three call sites above would be a welcome community contribution.
+
+> **Note on structured output:** `AI_ADAPTIVE` node scoring expects a JSON array response. Smaller or quantized models may not reliably follow this schema. The existing fallback to `DISTANCE_OPTIMAL` handles this gracefully — a bad response never crashes the routing path.
+
+### 7.5 Pattern Discovery
 
 The `discover_patterns` Celery task runs nightly at 02:00 UTC via `PatternDiscoveryService`:
 
@@ -938,7 +958,7 @@ The `discover_patterns` Celery task runs nightly at 02:00 UTC via `PatternDiscov
    - ≥ 10 AI_ADAPTIVE samples
    - AI outperforms baseline by ≥ 10%
 
-### 7.5 A/B Experiments
+### 7.6 A/B Experiments
 
 Admins create experiments via the Architect UI or API. The sourcing engine checks for matching running experiments before executing any strategy:
 
@@ -952,7 +972,7 @@ else:
 
 The `evaluate_ai_experiments` task (runs daily at 03:00 UTC) computes per-arm outcome scores and declares a winner when both arms have ≥ 50 samples and the score difference ≥ 0.05.
 
-### 7.6 Proposal Lifecycle
+### 7.7 Proposal Lifecycle
 
 ```
 PENDING
@@ -976,7 +996,7 @@ APPLIED ──────────────────────► (a
 | `ui_widget` | `INSERT` into `ui_widgets` | Soft-delete (`is_active=False`) |
 | `sourcing_experiment` | `INSERT` into `ai_experiments` | `UPDATE status='paused'` |
 
-### 7.7 Architect UI
+### 7.8 Architect UI
 
 The `/architect` page (superadmin only) has four tabs:
 
@@ -1040,7 +1060,7 @@ SOURCING ──► SOURCED
 
 ## 9. Celery Workers
 
-### 7 Named Queues
+### Named Queues
 
 | Queue | Worker | Tasks |
 |---|---|---|
@@ -1346,7 +1366,7 @@ All configuration is via environment variables (`.env` file for local dev):
 | `WEBHOOK_MAX_RETRIES` | `3` | Max retry attempts |
 | `DEFAULT_SOURCING_STRATEGY` | `DISTANCE_OPTIMAL` | Fallback strategy when no rule matches |
 | `MAX_SPLIT_NODES` | `3` | Global max nodes for split fulfillment |
-| `ANTHROPIC_API_KEY` | — | Required for `AI_ADAPTIVE` / `AI_HYBRID` strategies and NL commands |
+| `ANTHROPIC_API_KEY` | — | Required when using the default Anthropic provider for `AI_ADAPTIVE` / `AI_HYBRID` strategies and NL commands. Replace with your provider's key if [swapping the LLM](#74-bring-your-own-llm). |
 
 ---
 
