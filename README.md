@@ -202,6 +202,8 @@ The sections below cover the complete system internals.
 
 ## 1. Architecture Overview
 
+![KubeRiva OMS Enterprise Architecture](docs/architecture.png)
+
 ### System Architecture
 
 ```mermaid
