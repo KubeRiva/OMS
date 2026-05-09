@@ -14,7 +14,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 from app.config import settings
-from app.core.security import hash_password, verify_token_async
+from app.core.security import hash_password, verify_token, verify_token_async
 from app.database.postgres import init_db, async_session_factory
 from app.database.mongodb import connect_to_mongo, close_mongo_connection
 from app.database.redis_client import init_redis, close_redis
@@ -274,6 +274,7 @@ async def seed_default_environment() -> None:
             name="Default Organization",
             slug="default",
             description="Auto-created default organization",
+            tenant_mode="HYBRID",  # supports both B2C and B2B out of the box
         )
         session.add(org)
         await session.flush()
@@ -351,7 +352,7 @@ app = FastAPI(
         "Production-grade OMS supporting WEB, MOBILE, POS, API, MARKETPLACE channels "
         "with configurable sourcing rules, real-time inventory, and full fulfillment pipeline."
     ),
-    version="1.0.0",
+    version="0.2.0",
     docs_url=None,
     redoc_url=None,
     openapi_url="/openapi.json",
@@ -391,12 +392,12 @@ app.add_middleware(
 )
 
 # Plan tier enforcement (checks order/warehouse/user limits per PLAN_TIER)
-from app.middleware.plan_tier import PlanTierMiddleware  # noqa: E402
+from app.middleware.plan_tier import PlanTierMiddleware
 app.add_middleware(PlanTierMiddleware)
 
 # Environment resolution — reads X-OMS-Environment header, resolves to Environment
 # record, stores in request.state.environment for env-aware get_db()
-from app.middleware.environment import EnvironmentMiddleware  # noqa: E402
+from app.middleware.environment import EnvironmentMiddleware
 app.add_middleware(EnvironmentMiddleware)
 
 _EXEMPT_PREFIXES = (
@@ -417,24 +418,20 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=(), payment=()"
-    if request.url.path.startswith("/embedded"):
-        # Shopify Admin embeds the app in an iframe for App Bridge mode.
-        # Allow framing from Shopify domains and load App Bridge assets from CDN.
+    if request.url.path.startswith(("/docs", "/redoc")):
+        # Swagger UI / ReDoc load assets from CDN — allow those origins
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' https://cdn.shopify.com; "
-            "style-src 'self' 'unsafe-inline' https://cdn.shopify.com; "
-            "img-src 'self' data: https://cdn.shopify.com; "
-            "connect-src 'self' https://*.myshopify.com; "
-            "frame-ancestors https://*.myshopify.com https://admin.shopify.com;"
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "img-src 'self' data: https://fastapi.tiangolo.com; "
+            "connect-src 'self'; "
+            "frame-ancestors 'none';"
         )
-        # Remove X-Frame-Options for embedded routes — it conflicts with
-        # frame-ancestors CSP and Shopify requires iframe embedding.
-        response.headers.pop("X-Frame-Options", None)
     else:
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline'; "   # unsafe-inline needed for Swagger UI
+            "script-src 'self' 'unsafe-inline'; "
             "style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data:; "
             "connect-src 'self'; "
@@ -573,14 +570,27 @@ async def root():
 # Routers
 # ---------------------------------------------------------------------------
 
-from app.routers import orders, inventory, sourcing_rules, nodes, search, analytics, webhooks, ai, connectors  # noqa: E402
-from app.routers import auth, admin, monitoring, performance, testing, architect, ops  # noqa: E402
-from app.routers import organizations, environments, lifecycles  # noqa: E402
-from app.routers import shopify_oauth  # noqa: E402
-from app.routers import shopify_billing  # noqa: E402
+from app.routers import orders, inventory, sourcing_rules, nodes, search, analytics, webhooks, ai, connectors
+from app.routers import auth, admin, monitoring, performance, testing, architect, ops
+from app.routers import organizations, environments, lifecycles
+from app.routers import api_keys as api_keys_module
+from app.routers import customers
+from app.routers import brands
+from app.routers import invoices
+from app.routers.invoices import credit_memo_router
+from app.routers import returns as returns_module
+from app.routers.returns import order_refunds_router
+from app.routers.customer_profiles import router as customer_profiles_router
+from app.routers import distribution_groups
+from app.routers import brand_access
+from app.models.postgres import user_brand_role_models  # noqa: F401 — ensure DDL is registered
 
 app.include_router(auth.router)
 app.include_router(admin.router)
+app.include_router(brands.router)
+app.include_router(customers.router)
+app.include_router(invoices.router)
+app.include_router(credit_memo_router)
 app.include_router(orders.router)
 app.include_router(inventory.router)
 app.include_router(sourcing_rules.router)
@@ -597,9 +607,12 @@ app.include_router(architect.router)
 app.include_router(organizations.router)
 app.include_router(environments.router)
 app.include_router(lifecycles.router)
-app.include_router(shopify_oauth.router)
-app.include_router(shopify_billing.router)
-app.include_router(shopify_billing.billing_webhook_router)
+app.include_router(distribution_groups.router)
+app.include_router(brand_access.router)
+app.include_router(api_keys_module.router)
+app.include_router(returns_module.router, prefix="/api")
+app.include_router(order_refunds_router, prefix="/api")
+app.include_router(customer_profiles_router, prefix="/api")
 
 if settings.ENVIRONMENT == "development":
     logger.info("Testing endpoints enabled (development mode only)")

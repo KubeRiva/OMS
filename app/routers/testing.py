@@ -49,10 +49,10 @@ router = APIRouter(prefix="/testing/e2e", tags=["Testing"], dependencies=[Depend
 @router.post("/run", response_model=TestRunResponse)
 async def run_e2e_tests():
     """
-    Run comprehensive end-to-end tests.
+    Run comprehensive end-to-end tests with automatic cleanup.
 
-    Creates test data, runs workflow tests, and returns results.
-    Test data is NOT automatically cleaned up - use /cleanup endpoint.
+    Creates test data, runs all workflow tests, then purges all test data
+    (orders, nodes, inventory, users) regardless of test outcome.
     """
     from app.database.postgres import async_session_factory
     import uuid
@@ -60,16 +60,28 @@ async def run_e2e_tests():
 
     test_id = str(uuid.uuid4())
     start_time = time.time()
+    results = []
 
-    async with async_session_factory() as db:
+    # ── Session 1: run tests ──────────────────────────────────────────────────
+    async with async_session_factory() as test_session:
         try:
-            service = E2ETestService(db)
+            service = E2ETestService(test_session)
             results = await service.run_all_tests()
-            await db.commit()
+            await test_session.commit()
         except Exception as exc:
-            await db.rollback()
+            await test_session.rollback()
             logger.exception("E2E test execution error: %s", exc)
             raise HTTPException(status_code=500, detail="Test execution failed")
+
+    # ── Session 2: cleanup always runs regardless of test outcome ─────────────
+    async with async_session_factory() as cleanup_session:
+        try:
+            cleanup_service = E2ETestService(cleanup_session)
+            await cleanup_service.cleanup()
+            await cleanup_session.commit()
+        except Exception as exc:
+            await cleanup_session.rollback()
+            logger.warning("E2E post-run cleanup failed (non-critical): %s", exc)
 
     passed = sum(1 for r in results if r.status == TestFlowStatus.PASSED)
     failed = sum(1 for r in results if r.status == TestFlowStatus.FAILED)
@@ -97,24 +109,30 @@ async def run_e2e_tests():
 
 
 @router.post("/cleanup", response_model=CleanupResponse)
-async def cleanup_test_data(db: AsyncSession = Depends(get_db)):
+async def cleanup_test_data():
     """
-    Clean up test data from the last test run.
-    
-    WARNING: This will delete all test resources that were created.
+    Purge all test data from previous test runs.
+
+    Sweeps by pattern (TEST-*, TC0*, E2E-SKU-*, test_%@example.com, etc.)
+    so it catches data from any run, not just the most recent one.
     """
-    try:
-        service = E2ETestService(db)
-        # Note: This is a simplified cleanup that works with fresh service
-        # For production, would need to track test resources from the run
-        # For now, we'll provide a message
-        return CleanupResponse(
-            message="Cleanup endpoint requires test tracking implementation. Use the /run endpoint with auto-cleanup parameter for automatic cleanup.",
-            deleted_resources={},
-        )
-    except Exception as e:
-        logger.exception("E2E cleanup error: %s", e)
-        raise HTTPException(status_code=500, detail="Cleanup failed")
+    from app.database.postgres import async_session_factory
+
+    async with async_session_factory() as db:
+        try:
+            service = E2ETestService(db)
+            deleted = await service.cleanup()
+            await db.commit()
+        except Exception as exc:
+            await db.rollback()
+            logger.exception("E2E cleanup error: %s", exc)
+            raise HTTPException(status_code=500, detail="Cleanup failed")
+
+    total = sum(v for v in deleted.values() if isinstance(v, int))
+    return CleanupResponse(
+        message=f"Test data purged — {total} resources deleted",
+        deleted_resources=deleted,
+    )
 
 
 @router.get("/health")
@@ -218,7 +236,11 @@ async def run_api_integration_tests():
     """
     from app.services.api_integration_testing import ApiIntegrationTestService
 
-    service = ApiIntegrationTestService()
+    from app.config import settings
+    service = ApiIntegrationTestService(
+        admin_email=settings.BOOTSTRAP_ADMIN_EMAIL,
+        admin_password=settings.BOOTSTRAP_ADMIN_PASSWORD,
+    )
     run = await service.run_all()
 
     return {

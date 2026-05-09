@@ -2,9 +2,10 @@
 Inventory models: per-node stock levels, reservations, adjustments.
 """
 import uuid
+from datetime import datetime
 from sqlalchemy import (
     Column, String, Integer, Float, Boolean, DateTime,
-    Enum as SAEnum, Text, ForeignKey, Index, UniqueConstraint
+    Enum as SAEnum, Text, ForeignKey, Index, UniqueConstraint, JSON
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -47,6 +48,9 @@ class InventoryItem(Base):
     unit_cost = Column(Float, default=0.0)
     weight_lbs = Column(Float, default=0.0)
 
+    # Brand isolation — populated only when brand.inventory_mode = ISOLATED
+    brand_id = Column(UUID(as_uuid=True), ForeignKey("brands.id"), nullable=True, index=True)
+
     # Metadata
     is_active = Column(Boolean, default=True)
     last_counted_at = Column(DateTime(timezone=True))
@@ -61,6 +65,7 @@ class InventoryItem(Base):
         UniqueConstraint("node_id", "sku", name="uq_inventory_node_sku"),
         Index("ix_inventory_sku_available", "sku", "quantity_available"),
         Index("ix_inventory_node_id", "node_id"),
+        Index("ix_inventory_items_brand", "brand_id"),
     )
 
 

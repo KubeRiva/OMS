@@ -8,7 +8,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 
 from app.database.mongodb import get_mongo_db
@@ -382,6 +382,43 @@ async def inject_test_error(
             extra={"injected": True},
         )
     return {"ok": True, "message": "Test error injected — check Issues and Events tabs"}
+
+
+@router.get("/sla-summary")
+async def sla_summary(
+    request: Request,
+    _: dict = Depends(require_superadmin),
+):
+    """
+    Return today's SLA breach count for the current environment.
+    Reads the daily Redis counter written by app.workers.sla.check_sla_breaches.
+    """
+    import redis as redis_lib
+    from app.config import settings
+
+    environment_id: str = ""
+    if hasattr(request.state, "environment") and request.state.environment is not None:
+        env = request.state.environment
+        environment_id = str(env.id) if hasattr(env, "id") else ""
+
+    env_label = environment_id or "default"
+    date_str = datetime.utcnow().strftime("%Y-%m-%d")
+    redis_key = f"sla_breaches:{env_label}:{date_str}"
+
+    sla_breaches_today = 0
+    try:
+        r = redis_lib.from_url(settings.REDIS_URL)
+        val = r.get(redis_key)
+        if val is not None:
+            sla_breaches_today = int(val)
+    except Exception as exc:
+        logger.warning(f"sla_summary: Redis read failed: {exc}")
+
+    return {
+        "date": date_str,
+        "environment_id": env_label,
+        "sla_breaches_today": sla_breaches_today,
+    }
 
 
 @router.get("/summary")

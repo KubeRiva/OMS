@@ -3,30 +3,37 @@ import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, ShoppingCart, Package, Boxes, BarChart2,
   MapPin, Settings, Search, Zap, BookOpen, GitBranch, Sparkles,
-  Shield, LogOut, User, Webhook, Plug, AlertTriangle, TestTube, Brain, Server, Crown, ShoppingBag,
+  Shield, LogOut, User, Webhook, Plug, AlertTriangle, TestTube, Brain, Server, Crown,
+  Building2, Tag, FileText, RotateCcw,
 } from 'lucide-react'
 import { useAuth, isPlatformOwner } from '../context/AuthContext'
 import EnvironmentSwitcher from './EnvironmentSwitcher'
 import { useEnvironment } from '../contexts/EnvironmentContext'
 
+// superadminOnly: shown to superadmins regardless of permission group
 const navItems = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', permission: 'dashboard:view' },
-  { to: '/orders', icon: ShoppingCart, label: 'Orders', permission: 'orders:view' },
-  { to: '/inventory', icon: Package, label: 'Inventory', permission: 'inventory:view' },
-  { to: '/products', icon: Boxes, label: 'Products', permission: 'inventory:view' },
-  { to: '/analytics', icon: BarChart2, label: 'Analytics', permission: 'analytics:view' },
-  { to: '/nodes', icon: MapPin, label: 'Nodes', permission: 'nodes:view' },
-  { to: '/sourcing-rules', icon: Zap, label: 'Sourcing Rules', permission: 'sourcing_rules:view' },
-  { to: '/lifecycles', icon: GitBranch, label: 'Lifecycles', permission: 'lifecycles:view' },
-  { to: '/search', icon: Search, label: 'Search', permission: 'search:use' },
-  { to: '/ai', icon: Sparkles, label: 'AI Assistant', permission: 'ai:use' },
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', permission: 'dashboard:view', superadminOnly: false },
+  { to: '/orders', icon: ShoppingCart, label: 'Orders', permission: 'orders:view', superadminOnly: false },
+  { to: '/returns', icon: RotateCcw, label: 'Returns', permission: 'orders:view', superadminOnly: false },
+  { to: '/inventory', icon: Package, label: 'Inventory', permission: 'inventory:view', superadminOnly: false },
+  { to: '/products', icon: Boxes, label: 'Products', permission: 'inventory:view', superadminOnly: false },
+  { to: '/analytics', icon: BarChart2, label: 'Analytics', permission: 'analytics:view', superadminOnly: false },
+  { to: '/nodes', icon: MapPin, label: 'Nodes', permission: 'nodes:view', superadminOnly: true },
+  { to: '/sourcing-rules', icon: Zap, label: 'Sourcing Rules', permission: 'sourcing_rules:view', superadminOnly: true },
+  { to: '/lifecycles', icon: GitBranch, label: 'Lifecycles', permission: 'lifecycles:view', superadminOnly: true },
+  { to: '/search', icon: Search, label: 'Search', permission: 'search:use', superadminOnly: false },
+  { to: '/ai', icon: Sparkles, label: 'AI Assistant', permission: 'ai:use', superadminOnly: false },
 ]
 
 export default function Layout() {
   const { user, logout, hasPermission } = useAuth()
-  const { currentEnv } = useEnvironment()
+  const { currentEnv, isB2BEnabled } = useEnvironment()
 
-  const visibleNav = navItems.filter(item => hasPermission(item.permission))
+  const visibleNav = navItems.filter(item =>
+    item.superadminOnly
+      ? user?.is_superadmin
+      : hasPermission(item.permission)
+  )
   const isProd = currentEnv?.env_type === 'PROD'
   const isOwner = isPlatformOwner(user)
 
@@ -64,6 +71,28 @@ export default function Layout() {
               <span>{label}</span>
             </NavLink>
           ))}
+
+          {/* B2B Customer Accounts — only when B2B is enabled */}
+          {isB2BEnabled && user?.is_superadmin && (
+            <>
+              <NavLink to="/customers" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
+                <Building2 className="w-4 h-4 flex-shrink-0" />
+                <span>Customer Accounts</span>
+              </NavLink>
+              <NavLink to="/customers/profiles" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
+                <User className="w-4 h-4 flex-shrink-0" />
+                <span>B2C Profiles</span>
+              </NavLink>
+              <NavLink to="/invoices" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
+                <FileText className="w-4 h-4 flex-shrink-0" />
+                <span>Invoices</span>
+              </NavLink>
+              <NavLink to="/b2b-analytics" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
+                <BarChart2 className="w-4 h-4 flex-shrink-0" />
+                <span>B2B Analytics</span>
+              </NavLink>
+            </>
+          )}
 
           {/* Environments — all authenticated users */}
           <div className="border-t border-white/10 my-2" />
@@ -127,13 +156,13 @@ export default function Layout() {
                 <span>Connectors</span>
               </NavLink>
               <NavLink
-                to="/shopify/install"
+                to="/brands"
                 className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
               >
-                <ShoppingBag className="w-4 h-4 flex-shrink-0" />
-                <span>Shopify App</span>
+                <Tag className="w-4 h-4 flex-shrink-0" />
+                <span>Brands</span>
               </NavLink>
-              <NavLink
+<NavLink
                 to="/testing"
                 className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
               >

@@ -16,6 +16,7 @@ celery_app = Celery(
         "app.workers.connectors",
         "app.workers.inventory_sync",
         "app.workers.learning",
+        "app.workers.sla",
     ],
 )
 
@@ -112,20 +113,24 @@ celery_app.conf.update(
             "schedule": crontab(minute="*/15"),
         },
         "label-sourcing-outcomes": {
-            "task": "app.workers.learning.label_sourcing_outcomes",
+            "task": "app.workers.learning.label_sourcing_outcomes_fanout",
             "schedule": crontab(minute=0),        # Hourly at :00
         },
         "discover-patterns": {
-            "task": "app.workers.learning.discover_patterns",
+            "task": "app.workers.learning.discover_patterns_fanout",
             "schedule": crontab(hour=2, minute=0),  # Nightly at 02:00 UTC
         },
         "update-node-performance": {
-            "task": "app.workers.learning.update_node_performance",
+            "task": "app.workers.learning.update_node_performance_fanout",
             "schedule": crontab(minute=0, hour="*/4"),  # Every 4 hours
         },
         "evaluate-ai-experiments": {
-            "task": "app.workers.learning.evaluate_ai_experiments",
+            "task": "app.workers.learning.evaluate_ai_experiments_fanout",
             "schedule": crontab(hour=3, minute=0),  # Daily at 03:00 UTC
+        },
+        "check-sla-breaches": {
+            "task": "app.workers.sla.check_sla_breaches_fanout",
+            "schedule": crontab(minute="*/15"),
         },
     },
 )

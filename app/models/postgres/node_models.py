@@ -2,9 +2,10 @@
 Fulfillment nodes: Distribution Centers and Stores.
 """
 import uuid
+from datetime import datetime
 from sqlalchemy import (
     Column, String, Float, Boolean, DateTime, Integer,
-    Enum as SAEnum, Index, JSON
+    Enum as SAEnum, Text, ForeignKey, Index, JSON
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship

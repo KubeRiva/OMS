@@ -1,13 +1,14 @@
 """Inventory router — real-time stock management."""
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_
 from typing import Optional, List
 from uuid import UUID
 
-from fastapi import Depends
 from app.database.postgres import get_db
 from app.dependencies.auth import get_current_user
+from app.dependencies.brand import get_accessible_brand_ids
+from app.models.postgres.brand_models import Brand, InventoryMode
 from app.models.postgres.inventory_models import (
     InventoryItem, InventoryAdjustment, InventoryReservation
 )
@@ -50,13 +51,31 @@ async def create_inventory_item(payload: InventoryItemCreate, db: AsyncSession =
 
 @router.get("/", response_model=List[InventoryItemResponse])
 async def list_inventory(
+    request: Request,
     node_id: Optional[UUID] = None,
     sku: Optional[str] = None,
+    brand_id: Optional[str] = Query(default=None),
     low_stock_only: bool = False,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
+    accessible_brand_ids: Optional[List[str]] = Depends(get_accessible_brand_ids),
 ):
+    """List inventory items.
+
+    Brand-scope rules (applied in this order):
+    1. Brand-scoped users (non-superadmin with UserBrandRole assignments) only see
+       inventory belonging to their accessible brands. An empty assignment set returns
+       no results.
+    2. When brand_id query param is provided for a brand using ISOLATED inventory mode,
+       results are additionally filtered to stock owned by that brand.
+    3. SHARED mode brands (or when brand_id is omitted) apply no extra brand filter
+       beyond the scope restriction from rule 1.
+    """
+    # Return empty list immediately when caller has no brand access
+    if accessible_brand_ids is not None and not accessible_brand_ids:
+        return []
+
     query = select(InventoryItem).where(InventoryItem.is_active == True)
     if node_id:
         query = query.where(InventoryItem.node_id == node_id)
@@ -64,6 +83,22 @@ async def list_inventory(
         query = query.where(InventoryItem.sku == sku)
     if low_stock_only:
         query = query.where(InventoryItem.quantity_available <= InventoryItem.reorder_point)
+
+    # Apply user brand-scope restriction
+    if accessible_brand_ids is not None:
+        brand_uuids = [UUID(bid) for bid in accessible_brand_ids]
+        query = query.where(InventoryItem.brand_id.in_(brand_uuids))
+
+    # Brand-scoped filtering for ISOLATED inventory mode (explicit brand_id param)
+    if brand_id:
+        try:
+            brand_uuid = UUID(brand_id)
+            brand = await db.get(Brand, brand_uuid)
+            if brand and brand.inventory_mode == InventoryMode.ISOLATED.value:
+                query = query.where(InventoryItem.brand_id == brand_uuid)
+            # SHARED mode: return all inventory (no additional filter)
+        except (ValueError, AttributeError):
+            raise HTTPException(status_code=400, detail="Invalid brand_id format")
 
     query = query.offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(query)
@@ -145,7 +180,9 @@ async def list_products(
 async def update_product(
     sku: str,
     payload: ProductUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
+    brand_ids: Optional[List[str]] = Depends(get_accessible_brand_ids),
 ):
     """Update product-level attributes for all inventory items with this SKU."""
     result = await db.execute(
@@ -154,6 +191,11 @@ async def update_product(
     items = result.scalars().all()
     if not items:
         raise HTTPException(status_code=404, detail=f"No inventory found for SKU: {sku}")
+
+    # Brand-scope filtering: restrict to items the caller can access.
+    # Superadmin (brand_ids is None) updates all items as before.
+    if brand_ids is not None:
+        items = [item for item in items if str(item.brand_id) in brand_ids]
 
     update_data = payload.model_dump(exclude_unset=True)
     for item in items:
@@ -164,20 +206,38 @@ async def update_product(
 
 
 @router.get("/{item_id}", response_model=InventoryItemResponse)
-async def get_inventory_item(item_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_inventory_item(
+    item_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    brand_ids: Optional[List[str]] = Depends(get_accessible_brand_ids),
+):
     item = await db.get(InventoryItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Inventory item not found")
+
+    if brand_ids is not None:
+        if not brand_ids or str(item.brand_id) not in brand_ids:
+            raise HTTPException(status_code=403, detail="Access denied")
+
     return item
 
 
 @router.patch("/{item_id}", response_model=InventoryItemResponse)
 async def update_inventory_item(
-    item_id: UUID, payload: InventoryItemUpdate, db: AsyncSession = Depends(get_db)
+    item_id: UUID,
+    payload: InventoryItemUpdate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    brand_ids: Optional[List[str]] = Depends(get_accessible_brand_ids),
 ):
     item = await db.get(InventoryItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Inventory item not found")
+
+    if brand_ids is not None:
+        if not brand_ids or str(item.brand_id) not in brand_ids:
+            raise HTTPException(status_code=403, detail="Access denied")
 
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(item, field, value)
@@ -191,11 +251,17 @@ async def adjust_inventory(
     item_id: UUID,
     payload: InventoryAdjustmentCreate,
     background_tasks: BackgroundTasks,
+    request: Request,
     db: AsyncSession = Depends(get_db),
+    brand_ids: Optional[List[str]] = Depends(get_accessible_brand_ids),
 ):
     item = await db.get(InventoryItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Inventory item not found")
+
+    if brand_ids is not None:
+        if not brand_ids or str(item.brand_id) not in brand_ids:
+            raise HTTPException(status_code=403, detail="Access denied")
 
     quantity_before = item.quantity_on_hand
     quantity_after = max(0, quantity_before + payload.quantity_delta)
@@ -280,7 +346,12 @@ async def check_availability(payload: BulkInventoryCheck, db: AsyncSession = Dep
 
 
 @router.post("/transfer", response_model=dict)
-async def transfer_inventory(payload: InventoryTransfer, db: AsyncSession = Depends(get_db)):
+async def transfer_inventory(
+    payload: InventoryTransfer,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    brand_ids: Optional[List[str]] = Depends(get_accessible_brand_ids),
+):
     """Transfer inventory between nodes."""
     from app.models.postgres.inventory_models import InventoryAdjustmentReason
 
@@ -294,6 +365,11 @@ async def transfer_inventory(payload: InventoryTransfer, db: AsyncSession = Depe
     source = result.scalar_one_or_none()
     if not source:
         raise HTTPException(status_code=404, detail="Source inventory item not found")
+
+    if brand_ids is not None:
+        if not brand_ids or str(source.brand_id) not in brand_ids:
+            raise HTTPException(status_code=403, detail="Access denied")
+
     if source.quantity_available < payload.quantity:
         raise HTTPException(
             status_code=400,

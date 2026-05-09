@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
     name="app.workers.learning.label_sourcing_outcomes",
     queue="learning",
 )
-def label_sourcing_outcomes():
+def label_sourcing_outcomes(environment_id: str = ""):
     """
     Hourly: find delivered orders with sourcing_outcomes docs and compute outcome_score.
 
@@ -26,14 +26,16 @@ def label_sourcing_outcomes():
     )
     """
     import asyncio
+    from app.workers.env_utils import get_env_mongo_ai_db
 
     async def _run():
         from motor.motor_asyncio import AsyncIOMotorClient
         from app.config import settings
 
+        mongo_ai_db = get_env_mongo_ai_db(environment_id)
         client = AsyncIOMotorClient(settings.MONGODB_URL, serverSelectionTimeoutMS=5000, uuidRepresentation="standard")
         try:
-            db = client[settings.MONGODB_AI_DB]
+            db = client[mongo_ai_db]
             # Find outcomes that have delivery data but haven't been labeled yet
             cursor = db.sourcing_outcomes.find(
                 {
@@ -77,9 +79,19 @@ def label_sourcing_outcomes():
                     4,
                 )
 
+                label_update: dict = {
+                    "outcome_score": outcome_score,
+                    "labeled_at": datetime.utcnow(),
+                }
+                # Carry brand_slug forward if present (for pattern grouping)
+                if doc.get("brand_slug"):
+                    label_update["brand_slug"] = doc["brand_slug"]
+                if doc.get("brand_id"):
+                    label_update["brand_id"] = doc["brand_id"]
+
                 await db.sourcing_outcomes.update_one(
                     {"_id": doc["_id"]},
-                    {"$set": {"outcome_score": outcome_score, "labeled_at": datetime.utcnow()}},
+                    {"$set": label_update},
                 )
                 labeled += 1
 
@@ -96,17 +108,18 @@ def label_sourcing_outcomes():
     name="app.workers.learning.discover_patterns",
     queue="learning",
 )
-def discover_patterns():
+def discover_patterns(environment_id: str = ""):
     """
     Nightly: aggregate labeled outcomes into sourcing_patterns by cluster key,
     then generate AI proposals for clusters where AI_ADAPTIVE shows a
     statistically significant advantage over DISTANCE_OPTIMAL.
 
-    Cluster key = channel|region|amount_bucket|fulfillment_type
+    Cluster key = brand_slug|channel|region|amount_bucket|fulfillment_type
 
     Delegates to PatternDiscoveryService for aggregation + proposal generation.
     """
     import asyncio
+    from app.workers.env_utils import get_env_db_url, get_env_mongo_ai_db
 
     async def _run():
         from motor.motor_asyncio import AsyncIOMotorClient
@@ -118,14 +131,17 @@ def discover_patterns():
         from app.models.postgres import (  # noqa
             order_models, inventory_models, node_models,
             sourcing_rule_models, connector_models, auth_models, ai_models, lifecycle_models,
+            b2b_models, brand_models,
         )
 
+        db_url = get_env_db_url(environment_id)
+        mongo_ai_db = get_env_mongo_ai_db(environment_id)
         mongo_client = AsyncIOMotorClient(settings.MONGODB_URL, serverSelectionTimeoutMS=5000, uuidRepresentation="standard")
-        engine = create_async_engine(settings.DATABASE_URL, echo=False)
+        engine = create_async_engine(db_url, echo=False)
         factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
         try:
-            db = mongo_client[settings.MONGODB_AI_DB]
+            db = mongo_client[mongo_ai_db]
             async with factory() as session:
                 service = PatternDiscoveryService()
                 result = await service.run(db, session)
@@ -145,19 +161,21 @@ def discover_patterns():
     name="app.workers.learning.update_node_performance",
     queue="learning",
 )
-def update_node_performance():
+def update_node_performance(environment_id: str = ""):
     """
     Every 4 hours: compute rolling 7-day and 30-day node performance metrics.
     """
     import asyncio
+    from app.workers.env_utils import get_env_mongo_ai_db
 
     async def _run():
         from motor.motor_asyncio import AsyncIOMotorClient
         from app.config import settings
 
+        mongo_ai_db = get_env_mongo_ai_db(environment_id)
         client = AsyncIOMotorClient(settings.MONGODB_URL, serverSelectionTimeoutMS=5000, uuidRepresentation="standard")
         try:
-            db = client[settings.MONGODB_AI_DB]
+            db = client[mongo_ai_db]
             now = datetime.utcnow()
 
             for period_days in (7, 30):
@@ -220,7 +238,7 @@ def update_node_performance():
     name="app.workers.learning.evaluate_ai_experiments",
     queue="learning",
 )
-def evaluate_ai_experiments():
+def evaluate_ai_experiments(environment_id: str = ""):
     """
     Daily: evaluate running A/B experiments.
 
@@ -233,8 +251,9 @@ def evaluate_ai_experiments():
          - Generate a PENDING AIProposal to promote the winning strategy.
     """
     import asyncio
+    from app.workers.env_utils import get_env_db_url, get_env_mongo_ai_db
 
-    MIN_SAMPLES_PER_ARM = 50
+    MIN_SAMPLES_PER_ARM = 200  # Require more data per arm for statistical reliability
     MIN_SCORE_DIFF = 0.05  # Absolute outcome score difference required
 
     async def _run():
@@ -248,10 +267,13 @@ def evaluate_ai_experiments():
         from app.models.postgres import (  # noqa
             order_models, inventory_models, node_models,
             sourcing_rule_models, connector_models, auth_models, ai_models, lifecycle_models,
+            b2b_models, brand_models,
         )
 
+        db_url = get_env_db_url(environment_id)
+        mongo_ai_db = get_env_mongo_ai_db(environment_id)
         mongo_client = AsyncIOMotorClient(settings.MONGODB_URL, serverSelectionTimeoutMS=5000, uuidRepresentation="standard")
-        engine = create_async_engine(settings.DATABASE_URL, echo=False)
+        engine = create_async_engine(db_url, echo=False)
         factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
         try:
@@ -396,3 +418,51 @@ def evaluate_ai_experiments():
             await engine.dispose()
 
     asyncio.run(_run())
+
+
+# ---------------------------------------------------------------------------
+# Fan-out beat tasks — dispatch per-environment work to the learning queue
+# ---------------------------------------------------------------------------
+
+@celery_app.task(
+    name="app.workers.learning.label_sourcing_outcomes_fanout",
+    queue="learning",
+)
+def label_sourcing_outcomes_fanout():
+    """Beat task: dispatch label_sourcing_outcomes to every active environment."""
+    from app.workers.env_utils import list_active_environment_ids
+    for env_id in list_active_environment_ids():
+        label_sourcing_outcomes.delay(env_id)
+
+
+@celery_app.task(
+    name="app.workers.learning.discover_patterns_fanout",
+    queue="learning",
+)
+def discover_patterns_fanout():
+    """Beat task: dispatch discover_patterns to every active environment."""
+    from app.workers.env_utils import list_active_environment_ids
+    for env_id in list_active_environment_ids():
+        discover_patterns.delay(env_id)
+
+
+@celery_app.task(
+    name="app.workers.learning.update_node_performance_fanout",
+    queue="learning",
+)
+def update_node_performance_fanout():
+    """Beat task: dispatch update_node_performance to every active environment."""
+    from app.workers.env_utils import list_active_environment_ids
+    for env_id in list_active_environment_ids():
+        update_node_performance.delay(env_id)
+
+
+@celery_app.task(
+    name="app.workers.learning.evaluate_ai_experiments_fanout",
+    queue="learning",
+)
+def evaluate_ai_experiments_fanout():
+    """Beat task: dispatch evaluate_ai_experiments to every active environment."""
+    from app.workers.env_utils import list_active_environment_ids
+    for env_id in list_active_environment_ids():
+        evaluate_ai_experiments.delay(env_id)

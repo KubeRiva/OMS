@@ -63,6 +63,7 @@ class EnvironmentResponse(BaseModel):
     id: uuid.UUID
     organization_id: uuid.UUID
     organization_name: str = ""
+    tenant_mode: str = "HYBRID"
     name: str
     slug: str
     env_type: str
@@ -143,6 +144,7 @@ async def _env_response(env, db: AsyncSession) -> EnvironmentResponse:
         id=env.id,
         organization_id=env.organization_id,
         organization_name=org.name if org else "",
+        tenant_mode=getattr(org, "tenant_mode", "HYBRID") if org else "HYBRID",
         name=env.name,
         slug=env.slug,
         env_type=env.env_type.value,

@@ -4,9 +4,9 @@ import {
   Plug, Plus, RefreshCw, Trash2, Edit2, CheckCircle, XCircle,
   AlertCircle, ChevronRight, Copy, Check, Zap, ExternalLink,
   ShoppingBag, Package, Truck, Globe, ToggleLeft, ToggleRight,
-  Clock, ArrowDownCircle, ArrowUpCircle, Activity,
+  Clock, ArrowDownCircle, ArrowUpCircle, Activity, Tag,
 } from 'lucide-react'
-import api from '../api/client'
+import api, { getBrands, type Brand } from '../api/client'
 import Modal from '../components/Modal'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -33,6 +33,7 @@ interface Connector {
   created_at: string
   updated_at: string
   webhook_url: string | null
+  brand_id?: string | null
 }
 
 interface ConnectorEvent {
@@ -206,9 +207,9 @@ const PLATFORMS: Record<ConnectorType, PlatformMeta> = {
 const connectorsApi = {
   list: (): Promise<Connector[]> =>
     api.get<Connector[]>('/connectors/').then(r => r.data),
-  create: (data: { name: string; connector_type: ConnectorType; direction: ConnectorDirection; config: Record<string, string> }): Promise<Connector> =>
+  create: (data: { name: string; connector_type: ConnectorType; direction: ConnectorDirection; config: Record<string, string>; brand_id?: string | null }): Promise<Connector> =>
     api.post<Connector>('/connectors/', data).then(r => r.data),
-  update: (id: string, data: Partial<{ name: string; direction: ConnectorDirection; status: ConnectorStatus; config: Record<string, string> }>): Promise<Connector> =>
+  update: (id: string, data: Partial<{ name: string; direction: ConnectorDirection; status: ConnectorStatus; config: Record<string, string>; brand_id?: string | null }>): Promise<Connector> =>
     api.patch<Connector>(`/connectors/${id}`, data).then(r => r.data),
   delete: (id: string) => api.delete(`/connectors/${id}`),
   toggle: (id: string): Promise<{ id: string; status: ConnectorStatus }> =>
@@ -287,15 +288,18 @@ function timeAgo(dateStr: string | null) {
 
 function ConnectorCard({
   connector,
+  brands,
   onEdit,
   onShowEvents,
 }: {
   connector: Connector
+  brands: Brand[]
   onEdit: (c: Connector) => void
   onShowEvents: (c: Connector) => void
 }) {
   const qc = useQueryClient()
   const platform = PLATFORMS[connector.connector_type]
+  const connectorBrand = connector.brand_id ? brands.find(b => b.id === connector.brand_id) : null
 
   const toggleMut = useMutation({
     mutationFn: () => connectorsApi.toggle(connector.id),
@@ -332,6 +336,12 @@ function ConnectorCard({
               <p className="text-sm font-semibold text-gray-900 truncate">{connector.name}</p>
               <StatusBadge status={connector.status} />
               <DirectionBadge direction={connector.direction} />
+              {connectorBrand && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">
+                  <Tag className="w-2.5 h-2.5" />
+                  {connectorBrand.slug}
+                </span>
+              )}
             </div>
             <p className="text-[11px] text-gray-400 mt-0.5">
               {platform.label} · {platform.category}
@@ -484,16 +494,19 @@ function ConnectorModal({
   open,
   onClose,
   editing,
+  brands,
 }: {
   open: boolean
   onClose: () => void
   editing: Connector | null
+  brands: Brand[]
 }) {
   const qc = useQueryClient()
   const [step, setStep] = useState<1 | 2>(editing ? 2 : 1)
   const [selectedType, setSelectedType] = useState<ConnectorType | null>(editing?.connector_type ?? null)
   const [name, setName] = useState(editing?.name ?? '')
   const [direction, setDirection] = useState<ConnectorDirection>(editing?.direction ?? 'BIDIRECTIONAL')
+  const [brandId, setBrandId] = useState<string>(editing?.brand_id ?? '')
   const [config, setConfig] = useState<Record<string, string>>(
     editing ? Object.fromEntries(
       Object.entries(editing.config).map(([k, v]) => [k, v === '***' ? '' : v])
@@ -525,10 +538,11 @@ function ConnectorModal({
 
   const handleSubmit = () => {
     if (!selectedType || !name) return
+    const resolvedBrandId = brandId || null
     if (editing) {
-      updateMut.mutate({ id: editing.id, data: { name, direction, config } })
+      updateMut.mutate({ id: editing.id, data: { name, direction, config, brand_id: resolvedBrandId } })
     } else {
-      createMut.mutate({ name, connector_type: selectedType, direction, config })
+      createMut.mutate({ name, connector_type: selectedType, direction, config, brand_id: resolvedBrandId })
     }
   }
 
@@ -620,6 +634,19 @@ function ConnectorModal({
                 <option value="OUTBOUND">Outbound only (send fulfillments)</option>
               </select>
             </div>
+
+            {brands.length > 0 && (
+              <div>
+                <label className="label">Brand <span className="text-gray-400 font-normal">(optional)</span></label>
+                <select className="select" value={brandId} onChange={e => setBrandId(e.target.value)}>
+                  <option value="">— No brand —</option>
+                  {brands.map(b => (
+                    <option key={b.id} value={b.id}>{b.name} ({b.slug})</option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-gray-400 mt-0.5">Associate this connector with a specific brand for routing and reporting.</p>
+              </div>
+            )}
 
             <div className="border-t border-gray-100 pt-3">
               <p className="text-xs font-semibold text-gray-600 mb-3">Platform Configuration</p>
@@ -780,10 +807,16 @@ export default function Connectors() {
     refetchInterval: 15_000,
   })
 
+  const { data: brands = [] } = useQuery({
+    queryKey: ['brands', 'active'],
+    queryFn: () => getBrands({ is_active: true }),
+  })
+
   const [showModal, setShowModal] = useState(false)
   const [editingConnector, setEditingConnector] = useState<Connector | null>(null)
   const [eventsConnector, setEventsConnector] = useState<Connector | null>(null)
   const [showEventsModal, setShowEventsModal] = useState(false)
+  const [brandFilter, setBrandFilter] = useState<string>('')
 
   const handleEdit = useCallback((c: Connector) => {
     setEditingConnector(c)
@@ -799,6 +832,12 @@ export default function Connectors() {
     setShowModal(false)
     setEditingConnector(null)
   }, [])
+
+  const filteredConnectors = connectors
+    ? brandFilter
+      ? connectors.filter(c => c.brand_id === brandFilter)
+      : connectors
+    : []
 
   const activeCount = connectors?.filter(c => c.status === 'ACTIVE').length ?? 0
   const errorCount = connectors?.filter(c => c.status === 'ERROR').length ?? 0
@@ -823,6 +862,31 @@ export default function Connectors() {
           </button>
         </div>
       </div>
+
+      {/* Brand filter */}
+      {brands.length > 0 && (
+        <div className="flex items-center gap-2 mb-4">
+          <Tag className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+          <select
+            className="select text-xs py-1 max-w-[200px]"
+            value={brandFilter}
+            onChange={e => setBrandFilter(e.target.value)}
+          >
+            <option value="">All Brands</option>
+            {brands.map(b => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+          {brandFilter && (
+            <button
+              onClick={() => setBrandFilter('')}
+              className="text-[11px] text-gray-400 hover:text-gray-600"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Summary stats */}
       {connectors && connectors.length > 0 && (
@@ -880,14 +944,20 @@ export default function Connectors() {
       {/* Connector grid */}
       {connectors && connectors.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {connectors.map(c => (
+          {filteredConnectors.map(c => (
             <ConnectorCard
               key={c.id}
               connector={c}
+              brands={brands}
               onEdit={handleEdit}
               onShowEvents={handleShowEvents}
             />
           ))}
+          {filteredConnectors.length === 0 && (
+            <div className="col-span-2 text-center py-12 text-sm text-gray-400">
+              No connectors match the selected brand filter.
+            </div>
+          )}
         </div>
       )}
 
@@ -922,6 +992,7 @@ export default function Connectors() {
         open={showModal}
         onClose={handleCloseModal}
         editing={editingConnector}
+        brands={brands}
       />
       <EventsModal
         connector={eventsConnector}

@@ -5,12 +5,19 @@ import {
   Building2, Globe, Key, ChevronRight, AlertTriangle,
   LayoutDashboard, ShoppingCart, Package, BarChart2,
   MapPin, Zap, GitBranch, Search, Sparkles, Layers,
-  UserCheck, Lock, Eye, Settings,
+  UserCheck, Lock, Eye, Settings, Tag, Copy, Database,
 } from 'lucide-react'
 import api, {
   fetchAdminUsers, createAdminUser, updateAdminUser, deleteAdminUser,
   fetchAdminGroups, createAdminGroup, updateAdminGroup, deleteAdminGroup,
+  getBrands,
+  fetchCustomFieldDefinitions, createCustomFieldDefinition, deleteCustomFieldDefinition,
+  fetchApiKeys, createApiKey, revokeApiKey,
+  fetchBrandAccess, createBrandAccess, deleteBrandAccess,
   type AdminUser, type AdminGroup,
+  type CustomFieldDefinition, type CustomFieldDefinitionPayload,
+  type ApiKey, type ApiKeyCreatePayload, type ApiKeyCreatedResponse,
+  type UserBrandRole, type BrandAccessPayload,
 } from '../api/client'
 import Modal from '../components/Modal'
 
@@ -1248,13 +1255,616 @@ function MatrixTab({ users, envs }: { users: AdminUser[]; envs: EnvInfo[] }) {
   )
 }
 
+// ── Custom Fields Tab ─────────────────────────────────────────────────────────
+
+const ENTITY_TYPE_OPTIONS = ['ORDER', 'INVENTORY_ITEM', 'NODE'] as const
+const DATA_TYPE_OPTIONS = ['text', 'number', 'boolean', 'date'] as const
+
+const BLANK_FIELD_FORM: CustomFieldDefinitionPayload = {
+  entity_type: 'ORDER',
+  field_key: '',
+  label: '',
+  data_type: 'text',
+  is_required: false,
+  default_value: null,
+}
+
+function CustomFieldsTab() {
+  const qc = useQueryClient()
+  const { data: fields = [], isLoading } = useQuery<CustomFieldDefinition[]>({
+    queryKey: ['custom-fields'],
+    queryFn: () => fetchCustomFieldDefinitions(),
+  })
+  const [creating, setCreating] = useState(false)
+  const [form, setForm] = useState<CustomFieldDefinitionPayload>(BLANK_FIELD_FORM)
+  const [formError, setFormError] = useState<string | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<CustomFieldDefinition | null>(null)
+
+  const validateFieldKey = (key: string) => /^[a-z][a-z0-9_]*$/.test(key)
+
+  const createMut = useMutation({
+    mutationFn: () => createCustomFieldDefinition(form),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['custom-fields'] })
+      setCreating(false)
+      setForm(BLANK_FIELD_FORM)
+      setFormError(null)
+    },
+    onError: (err: unknown) => {
+      const e = err as { response?: { data?: { detail?: unknown } } }
+      const detail = e?.response?.data?.detail
+      if (Array.isArray(detail)) setFormError(detail.map((d: { msg: string }) => d.msg).join(', '))
+      else if (typeof detail === 'string') setFormError(detail)
+      else setFormError('Failed to create custom field.')
+    },
+  })
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => deleteCustomFieldDefinition(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['custom-fields'] })
+      setDeleteConfirm(null)
+    },
+  })
+
+  const handleCreate = () => {
+    if (!form.field_key || !validateFieldKey(form.field_key)) {
+      setFormError('Field key must start with a lowercase letter and use only lowercase letters, digits, and underscores.')
+      return
+    }
+    if (!form.label.trim()) { setFormError('Label is required.'); return }
+    setFormError(null)
+    createMut.mutate()
+  }
+
+  if (isLoading) return <div className="flex items-center justify-center h-48 text-gray-400 text-sm">Loading…</div>
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">Custom Field Definitions</h2>
+          <p className="text-xs text-gray-500 mt-0.5">Define extra metadata fields for Orders, Inventory Items, and Nodes</p>
+        </div>
+        <button onClick={() => { setCreating(true); setForm(BLANK_FIELD_FORM); setFormError(null) }} className="btn-primary flex items-center gap-1.5 text-sm py-1.5 px-3">
+          <Plus className="w-4 h-4" /> Add Field
+        </button>
+      </div>
+
+      <div className="card overflow-hidden p-0">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b bg-gray-50">
+              <th className="table-header">Entity Type</th>
+              <th className="table-header">Field Key</th>
+              <th className="table-header">Label</th>
+              <th className="table-header">Data Type</th>
+              <th className="table-header text-center">Required</th>
+              <th className="table-header">Default</th>
+              <th className="table-header text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {fields.length === 0 && (
+              <tr><td colSpan={7} className="table-cell text-xs text-gray-400 italic text-center py-6">No custom fields defined yet</td></tr>
+            )}
+            {fields.map(f => (
+              <tr key={f.id} className="hover:bg-gray-50">
+                <td className="table-cell">
+                  <span className="inline-flex items-center text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 rounded px-2 py-0.5">{f.entity_type}</span>
+                </td>
+                <td className="table-cell font-mono text-xs text-gray-700">{f.field_key}</td>
+                <td className="table-cell">{f.label}</td>
+                <td className="table-cell">
+                  <span className="inline-flex items-center text-xs bg-gray-100 text-gray-600 rounded px-2 py-0.5">{f.data_type}</span>
+                </td>
+                <td className="table-cell text-center">
+                  {f.is_required
+                    ? <Check className="w-4 h-4 text-green-600 mx-auto" />
+                    : <span className="text-gray-300">—</span>}
+                </td>
+                <td className="table-cell text-xs text-gray-500">{f.default_value ?? <span className="text-gray-300">—</span>}</td>
+                <td className="table-cell text-right">
+                  <button
+                    onClick={() => setDeleteConfirm(f)}
+                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                    title="Delete"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {creating && (
+        <Modal open={true} title="Add Custom Field" onClose={() => { setCreating(false); setFormError(null) }}>
+          <div className="space-y-3 p-4">
+            <div>
+              <label className="label">Entity Type *</label>
+              <select className="select" value={form.entity_type} onChange={e => setForm(f => ({ ...f, entity_type: e.target.value as CustomFieldDefinitionPayload['entity_type'] }))}>
+                {ENTITY_TYPE_OPTIONS.map(et => <option key={et} value={et}>{et}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Field Key * <span className="text-gray-400 font-normal">(lowercase, underscores only)</span></label>
+              <input
+                className="input font-mono"
+                placeholder="e.g. warranty_code"
+                value={form.field_key}
+                onChange={e => setForm(f => ({ ...f, field_key: e.target.value }))}
+              />
+              {form.field_key && !validateFieldKey(form.field_key) && (
+                <p className="text-xs text-red-500 mt-1">Must start with a lowercase letter and contain only lowercase letters, digits, underscores.</p>
+              )}
+            </div>
+            <div>
+              <label className="label">Label *</label>
+              <input className="input" placeholder="e.g. Warranty Code" value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label">Data Type *</label>
+              <select className="select" value={form.data_type} onChange={e => setForm(f => ({ ...f, data_type: e.target.value as CustomFieldDefinitionPayload['data_type'] }))}>
+                {DATA_TYPE_OPTIONS.map(dt => <option key={dt} value={dt}>{dt}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Default Value <span className="text-gray-400 font-normal">(optional)</span></label>
+              <input className="input" placeholder="Leave blank for none" value={form.default_value ?? ''} onChange={e => setForm(f => ({ ...f, default_value: e.target.value || null }))} />
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="is-required"
+                checked={form.is_required}
+                onChange={e => setForm(f => ({ ...f, is_required: e.target.checked }))}
+                className="w-4 h-4 text-blue-600 border-gray-300 rounded"
+              />
+              <label htmlFor="is-required" className="text-sm text-gray-700">Required field</label>
+            </div>
+            {formError && <p className="text-xs text-red-600 p-2 bg-red-50 rounded">{formError}</p>}
+            <div className="flex justify-end gap-2 pt-2">
+              <button onClick={() => { setCreating(false); setFormError(null) }} className="btn-secondary text-sm">Cancel</button>
+              <button onClick={handleCreate} disabled={createMut.isPending} className="btn-primary text-sm">
+                {createMut.isPending ? 'Saving…' : 'Add Field'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {deleteConfirm && (
+        <Modal open={true} title="Delete Custom Field" onClose={() => setDeleteConfirm(null)}>
+          <div className="p-4 space-y-3">
+            <p className="text-sm text-gray-700">
+              Delete field <strong className="font-mono">{deleteConfirm.field_key}</strong> ({deleteConfirm.label})?
+              This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setDeleteConfirm(null)} className="btn-secondary text-sm">Cancel</button>
+              <button onClick={() => deleteMut.mutate(deleteConfirm.id)} disabled={deleteMut.isPending} className="btn-danger text-sm">
+                {deleteMut.isPending ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+// ── API Keys Tab ──────────────────────────────────────────────────────────────
+
+const API_KEY_SCOPES = [
+  'orders:read', 'orders:write',
+  'inventory:read', 'inventory:write',
+  'sourcing_rules:read', 'admin:read',
+]
+
+function ApiKeysTab() {
+  const qc = useQueryClient()
+  const { data: apiKeys = [], isLoading } = useQuery<ApiKey[]>({
+    queryKey: ['api-keys'],
+    queryFn: fetchApiKeys,
+  })
+  const [creating, setCreating] = useState(false)
+  const [form, setForm] = useState<ApiKeyCreatePayload>({ name: '', scopes: [] })
+  const [formError, setFormError] = useState<string | null>(null)
+  const [createdKey, setCreatedKey] = useState<ApiKeyCreatedResponse | null>(null)
+  const [revokeConfirm, setRevokeConfirm] = useState<ApiKey | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  const toggleScope = (scope: string) => {
+    setForm(f => ({
+      ...f,
+      scopes: f.scopes.includes(scope) ? f.scopes.filter(s => s !== scope) : [...f.scopes, scope],
+    }))
+  }
+
+  const createMut = useMutation({
+    mutationFn: () => createApiKey(form),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['api-keys'] })
+      setCreating(false)
+      setForm({ name: '', scopes: [] })
+      setFormError(null)
+      setCreatedKey(data)
+    },
+    onError: (err: unknown) => {
+      const e = err as { response?: { data?: { detail?: unknown } } }
+      const detail = e?.response?.data?.detail
+      if (Array.isArray(detail)) setFormError(detail.map((d: { msg: string }) => d.msg).join(', '))
+      else if (typeof detail === 'string') setFormError(detail)
+      else setFormError('Failed to create API key.')
+    },
+  })
+
+  const revokeMut = useMutation({
+    mutationFn: (id: string) => revokeApiKey(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['api-keys'] })
+      setRevokeConfirm(null)
+    },
+  })
+
+  const handleCopy = async () => {
+    if (!createdKey?.key) return
+    try {
+      await navigator.clipboard.writeText(createdKey.key)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // clipboard not available
+    }
+  }
+
+  if (isLoading) return <div className="flex items-center justify-center h-48 text-gray-400 text-sm">Loading…</div>
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">API Keys</h2>
+          <p className="text-xs text-gray-500 mt-0.5">Manage programmatic access keys with granular scope control</p>
+        </div>
+        <button onClick={() => { setCreating(true); setForm({ name: '', scopes: [] }); setFormError(null) }} className="btn-primary flex items-center gap-1.5 text-sm py-1.5 px-3">
+          <Plus className="w-4 h-4" /> Create API Key
+        </button>
+      </div>
+
+      <div className="card overflow-hidden p-0">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b bg-gray-50">
+              <th className="table-header">Prefix</th>
+              <th className="table-header">Name</th>
+              <th className="table-header">Scopes</th>
+              <th className="table-header">Last Used</th>
+              <th className="table-header text-center">Status</th>
+              <th className="table-header text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {apiKeys.length === 0 && (
+              <tr><td colSpan={6} className="table-cell text-xs text-gray-400 italic text-center py-6">No API keys created yet</td></tr>
+            )}
+            {apiKeys.map(k => (
+              <tr key={k.id} className="hover:bg-gray-50">
+                <td className="table-cell font-mono text-xs text-gray-700">{k.prefix}…</td>
+                <td className="table-cell font-medium">{k.name}</td>
+                <td className="table-cell">
+                  <div className="flex flex-wrap gap-1">
+                    {k.scopes.map(s => (
+                      <span key={s} className="inline-flex items-center text-[10px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 rounded px-1.5 py-0.5">{s}</span>
+                    ))}
+                  </div>
+                </td>
+                <td className="table-cell text-xs text-gray-400">
+                  {k.last_used_at ? new Date(k.last_used_at).toLocaleDateString() : <span className="italic">Never</span>}
+                </td>
+                <td className="table-cell text-center">
+                  {k.is_active
+                    ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5"><Check className="w-3 h-3" />Active</span>
+                    : <span className="inline-flex items-center gap-1 text-xs text-red-700 bg-red-50 border border-red-200 rounded-full px-2 py-0.5"><X className="w-3 h-3" />Revoked</span>}
+                </td>
+                <td className="table-cell text-right">
+                  {k.is_active && (
+                    <button
+                      onClick={() => setRevokeConfirm(k)}
+                      className="text-xs text-red-600 hover:text-red-800 hover:bg-red-50 px-2 py-1 rounded border border-red-200"
+                    >
+                      Revoke
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {creating && (
+        <Modal open={true} title="Create API Key" onClose={() => { setCreating(false); setFormError(null) }}>
+          <div className="space-y-4 p-4">
+            <div>
+              <label className="label">Key Name *</label>
+              <input className="input" placeholder="e.g. Warehouse Integration" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label">Scopes *</label>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                {API_KEY_SCOPES.map(scope => (
+                  <label key={scope} className={`flex items-center gap-2 p-2 rounded border cursor-pointer text-sm transition-colors ${form.scopes.includes(scope) ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-gray-200 hover:bg-gray-50'}`}>
+                    <input
+                      type="checkbox"
+                      checked={form.scopes.includes(scope)}
+                      onChange={() => toggleScope(scope)}
+                      className="w-3.5 h-3.5 text-blue-600"
+                    />
+                    <span className="font-mono text-xs">{scope}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="label">Expiry Date <span className="text-gray-400 font-normal">(optional)</span></label>
+              <input
+                type="date"
+                className="input"
+                value={form.expires_at ?? ''}
+                onChange={e => setForm(f => ({ ...f, expires_at: e.target.value || undefined }))}
+              />
+            </div>
+            {formError && <p className="text-xs text-red-600 p-2 bg-red-50 rounded">{formError}</p>}
+            <div className="flex justify-end gap-2 pt-1">
+              <button onClick={() => { setCreating(false); setFormError(null) }} className="btn-secondary text-sm">Cancel</button>
+              <button onClick={() => createMut.mutate()} disabled={createMut.isPending || !form.name || form.scopes.length === 0} className="btn-primary text-sm">
+                {createMut.isPending ? 'Creating…' : 'Create Key'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {createdKey && (
+        <Modal open={true} title="API Key Created" onClose={() => setCreatedKey(null)}>
+          <div className="p-4 space-y-4">
+            <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg">
+              <p className="text-sm font-bold text-amber-800">This key will not be shown again. Copy it now.</p>
+            </div>
+            <div>
+              <label className="label">Your new API key</label>
+              <div className="flex items-center gap-2 mt-1">
+                <input
+                  readOnly
+                  value={createdKey.key}
+                  className="input font-mono text-xs flex-1 bg-gray-50 select-all"
+                  onFocus={e => e.target.select()}
+                />
+                <button
+                  onClick={handleCopy}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded border text-sm font-medium transition-colors ${copied ? 'bg-green-50 border-green-300 text-green-700' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+                >
+                  {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  {copied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+            </div>
+            <div className="text-xs text-gray-500">
+              <p>Name: <span className="font-medium text-gray-700">{createdKey.name}</span></p>
+              <p className="mt-0.5">Scopes: {createdKey.scopes.join(', ')}</p>
+            </div>
+            <div className="flex justify-end">
+              <button onClick={() => setCreatedKey(null)} className="btn-primary text-sm">Done</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {revokeConfirm && (
+        <Modal open={true} title="Revoke API Key" onClose={() => setRevokeConfirm(null)}>
+          <div className="p-4 space-y-3">
+            <p className="text-sm text-gray-700">
+              Revoke key <strong>{revokeConfirm.name}</strong>? Any integrations using this key will stop working immediately. This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setRevokeConfirm(null)} className="btn-secondary text-sm">Cancel</button>
+              <button onClick={() => revokeMut.mutate(revokeConfirm.id)} disabled={revokeMut.isPending} className="btn-danger text-sm">
+                {revokeMut.isPending ? 'Revoking…' : 'Revoke Key'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+// ── Brand Access Tab ──────────────────────────────────────────────────────────
+
+const BRAND_ROLES: Array<{ value: UserBrandRole['role']; label: string; color: string }> = [
+  { value: 'VIEWER',   label: 'Viewer',   color: 'bg-gray-100 text-gray-600 border-gray-200' },
+  { value: 'OPERATOR', label: 'Operator', color: 'bg-blue-100 text-blue-700 border-blue-200' },
+  { value: 'ADMIN',    label: 'Admin',    color: 'bg-purple-100 text-purple-700 border-purple-200' },
+]
+
+function BrandRoleBadge({ role }: { role: string }) {
+  const meta = BRAND_ROLES.find(r => r.value === role) ?? BRAND_ROLES[0]
+  return <span className={`inline-flex items-center text-xs font-medium border rounded-full px-2 py-0.5 ${meta.color}`}>{meta.label}</span>
+}
+
+function BrandAccessTab({ users }: { users: AdminUser[] }) {
+  const qc = useQueryClient()
+  const { data: brandAccess = [], isLoading } = useQuery<UserBrandRole[]>({
+    queryKey: ['brand-access'],
+    queryFn: fetchBrandAccess,
+  })
+  const { data: brands = [] } = useQuery({ queryKey: ['brands'], queryFn: () => getBrands() })
+  const [assigning, setAssigning] = useState(false)
+  const [form, setForm] = useState<BrandAccessPayload>({ user_id: '', brand_id: '', role: 'VIEWER' })
+  const [formError, setFormError] = useState<string | null>(null)
+  const [removeConfirm, setRemoveConfirm] = useState<UserBrandRole | null>(null)
+
+  const assignMut = useMutation({
+    mutationFn: () => createBrandAccess(form),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['brand-access'] })
+      setAssigning(false)
+      setForm({ user_id: '', brand_id: '', role: 'VIEWER' })
+      setFormError(null)
+    },
+    onError: (err: unknown) => {
+      const e = err as { response?: { data?: { detail?: unknown } } }
+      const detail = e?.response?.data?.detail
+      if (Array.isArray(detail)) setFormError(detail.map((d: { msg: string }) => d.msg).join(', '))
+      else if (typeof detail === 'string') setFormError(detail)
+      else setFormError('Failed to assign brand access.')
+    },
+  })
+
+  const removeMut = useMutation({
+    mutationFn: (id: string) => deleteBrandAccess(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['brand-access'] })
+      setRemoveConfirm(null)
+    },
+  })
+
+  const getUserLabel = (userId: string) => {
+    const u = users.find(u => u.id === userId)
+    return u ? (u.full_name ? `${u.full_name} (${u.email})` : u.email) : userId
+  }
+
+  const getBrandLabel = (brandId: string) => {
+    const b = brands.find(b => b.id === brandId)
+    return b ? b.name : brandId
+  }
+
+  if (isLoading) return <div className="flex items-center justify-center h-48 text-gray-400 text-sm">Loading…</div>
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">Brand User Access</h2>
+          <p className="text-xs text-gray-500 mt-0.5">Assign users to brands with specific roles for multi-brand access control</p>
+        </div>
+        <button onClick={() => { setAssigning(true); setForm({ user_id: '', brand_id: '', role: 'VIEWER' }); setFormError(null) }} className="btn-primary flex items-center gap-1.5 text-sm py-1.5 px-3">
+          <Plus className="w-4 h-4" /> Assign User
+        </button>
+      </div>
+
+      <div className="card overflow-hidden p-0">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b bg-gray-50">
+              <th className="table-header">User</th>
+              <th className="table-header">Brand</th>
+              <th className="table-header">Role</th>
+              <th className="table-header">Assigned</th>
+              <th className="table-header text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {brandAccess.length === 0 && (
+              <tr><td colSpan={5} className="table-cell text-xs text-gray-400 italic text-center py-6">No brand access assignments yet</td></tr>
+            )}
+            {brandAccess.map(ba => (
+              <tr key={ba.id} className="hover:bg-gray-50">
+                <td className="table-cell">{getUserLabel(ba.user_id)}</td>
+                <td className="table-cell">
+                  <span className="flex items-center gap-1.5">
+                    <Tag className="w-3.5 h-3.5 text-gray-400" />
+                    {getBrandLabel(ba.brand_id)}
+                  </span>
+                </td>
+                <td className="table-cell"><BrandRoleBadge role={ba.role} /></td>
+                <td className="table-cell text-xs text-gray-400">{new Date(ba.created_at).toLocaleDateString()}</td>
+                <td className="table-cell text-right">
+                  <button
+                    onClick={() => setRemoveConfirm(ba)}
+                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                    title="Remove"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {assigning && (
+        <Modal open={true} title="Assign User to Brand" onClose={() => { setAssigning(false); setFormError(null) }}>
+          <div className="space-y-3 p-4">
+            <div>
+              <label className="label">User *</label>
+              <select className="select" value={form.user_id} onChange={e => setForm(f => ({ ...f, user_id: e.target.value }))}>
+                <option value="">Select user…</option>
+                {users.map(u => <option key={u.id} value={u.id}>{u.full_name ? `${u.full_name} (${u.email})` : u.email}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Brand *</label>
+              <select className="select" value={form.brand_id} onChange={e => setForm(f => ({ ...f, brand_id: e.target.value }))}>
+                <option value="">Select brand…</option>
+                {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Role *</label>
+              <div className="space-y-1.5 mt-1">
+                {BRAND_ROLES.map(r => (
+                  <label key={r.value} className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors ${form.role === r.value ? 'border-blue-400 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                    <input type="radio" name="brand-role" value={r.value} checked={form.role === r.value} onChange={() => setForm(f => ({ ...f, role: r.value }))} className="text-blue-600" />
+                    <BrandRoleBadge role={r.value} />
+                  </label>
+                ))}
+              </div>
+            </div>
+            {formError && <p className="text-xs text-red-600 p-2 bg-red-50 rounded">{formError}</p>}
+            <div className="flex justify-end gap-2 pt-1">
+              <button onClick={() => { setAssigning(false); setFormError(null) }} className="btn-secondary text-sm">Cancel</button>
+              <button onClick={() => assignMut.mutate()} disabled={assignMut.isPending || !form.user_id || !form.brand_id} className="btn-primary text-sm">
+                {assignMut.isPending ? 'Assigning…' : 'Assign Access'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {removeConfirm && (
+        <Modal open={true} title="Remove Brand Access" onClose={() => setRemoveConfirm(null)}>
+          <div className="p-4 space-y-3">
+            <p className="text-sm text-gray-700">
+              Remove <strong>{getUserLabel(removeConfirm.user_id)}</strong>'s access to <strong>{getBrandLabel(removeConfirm.brand_id)}</strong>?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setRemoveConfirm(null)} className="btn-secondary text-sm">Cancel</button>
+              <button onClick={() => removeMut.mutate(removeConfirm.id)} disabled={removeMut.isPending} className="btn-danger text-sm">
+                {removeMut.isPending ? 'Removing…' : 'Remove'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
 // ── Main Admin Page ───────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: 'users',   label: 'Users',          icon: Users },
-  { id: 'groups',  label: 'Groups & Permissions', icon: Shield },
-  { id: 'access',  label: 'Access Control', icon: Layers },
-  { id: 'matrix',  label: 'Access Matrix',  icon: Settings },
+  { id: 'users',        label: 'Users',               icon: Users },
+  { id: 'groups',       label: 'Groups & Permissions', icon: Shield },
+  { id: 'access',       label: 'Access Control',       icon: Layers },
+  { id: 'matrix',       label: 'Access Matrix',        icon: Settings },
+  { id: 'custom-fields',label: 'Custom Fields',        icon: Database },
+  { id: 'api-keys',     label: 'API Keys',             icon: Key },
+  { id: 'brand-access', label: 'Brand Access',         icon: Tag },
 ]
 
 export default function Admin() {
@@ -1270,6 +1880,7 @@ export default function Admin() {
     queryKey: ['environments'],
     queryFn: () => api.get<EnvInfo[]>('/environments').then(r => r.data),
   })
+  const { data: brands = [] } = useQuery({ queryKey: ['brands'], queryFn: () => getBrands() })
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -1302,6 +1913,46 @@ export default function Admin() {
         </div>
       </div>
 
+      {/* Brands summary */}
+      <div className="mb-5 grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="card p-3">
+          <div className="flex items-center gap-2 mb-1">
+            <Tag className="w-3.5 h-3.5 text-indigo-500" />
+            <span className="text-xs text-gray-500 font-medium">Total Brands</span>
+          </div>
+          <p className="text-2xl font-bold text-gray-800">{brands.length}</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">
+            {brands.filter(b => b.is_active).length} active · {brands.filter(b => !b.is_active).length} inactive
+          </p>
+        </div>
+        <div className="card p-3">
+          <div className="flex items-center gap-2 mb-1">
+            <Users className="w-3.5 h-3.5 text-blue-500" />
+            <span className="text-xs text-gray-500 font-medium">Users</span>
+          </div>
+          <p className="text-2xl font-bold text-gray-800">{users.length}</p>
+        </div>
+        <div className="card p-3">
+          <div className="flex items-center gap-2 mb-1">
+            <Shield className="w-3.5 h-3.5 text-purple-500" />
+            <span className="text-xs text-gray-500 font-medium">Groups</span>
+          </div>
+          <p className="text-2xl font-bold text-gray-800">{groups.length}</p>
+        </div>
+        <div className="card p-3 flex flex-col justify-between">
+          <div className="flex items-center gap-2 mb-1">
+            <Tag className="w-3.5 h-3.5 text-indigo-400" />
+            <span className="text-xs text-gray-500 font-medium">Brands</span>
+          </div>
+          <a
+            href="/brands"
+            className="btn-secondary text-xs py-1 px-2 text-center mt-1 inline-block"
+          >
+            Manage Brands
+          </a>
+        </div>
+      </div>
+
       {/* Tab bar */}
       <div className="flex gap-1 mb-6 border-b border-gray-200">
         {TABS.map(t => {
@@ -1326,6 +1977,9 @@ export default function Admin() {
       {tab === 'groups' && <GroupsTab />}
       {tab === 'access' && <AccessControlTab orgs={orgs} envs={envs} users={users} />}
       {tab === 'matrix' && <MatrixTab users={users} envs={envs} />}
+      {tab === 'custom-fields' && <CustomFieldsTab />}
+      {tab === 'api-keys' && <ApiKeysTab />}
+      {tab === 'brand-access' && <BrandAccessTab users={users} />}
     </div>
   )
 }

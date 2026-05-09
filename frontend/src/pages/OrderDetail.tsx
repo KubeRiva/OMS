@@ -4,8 +4,10 @@ import {
   ArrowLeft, Package, Truck, Clock, CheckCircle, XCircle,
   ChevronRight, RotateCcw, RefreshCw, AlertCircle, GitBranch,
   MapPin, DollarSign, Layers, ChevronDown, ChevronUp, Play, Zap,
+  Building2, ThumbsUp,
 } from 'lucide-react'
-import { fetchOrder, fetchOrderEvents, cancelOrder, updateOrderStatus, triggerOrderWorker, resolveLifecycle, type OrderStatus, type Order } from '../api/client'
+import { fetchOrder, fetchOrderEvents, cancelOrder, updateOrderStatus, triggerOrderWorker, resolveLifecycle, approveOrder, fetchOrderReturns, createReturn, createReturnRefund, type OrderStatus, type Order, type OrderReturn } from '../api/client'
+import { useAuth } from '../context/AuthContext'
 import { StatusBadge } from '../components/Badge'
 import { useState } from 'react'
 import Modal from '../components/Modal'
@@ -638,10 +640,13 @@ export default function OrderDetail() {
   const { id } = useParams<{ id: string }>()
   const nav = useNavigate()
   const qc = useQueryClient()
+  const { user } = useAuth()
   const [showCancel, setShowCancel] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
   const [workerResult, setWorkerResult] = useState<string | null>(null)
   const [backorderResult, setBackorderResult] = useState<string | null>(null)
+  const [showInitiateReturn, setShowInitiateReturn] = useState(false)
+  const [returnRefundTarget, setReturnRefundTarget] = useState<OrderReturn | null>(null)
 
   const TERMINAL_STATUSES = ['DELIVERED', 'CANCELLED', 'REFUNDED', 'RETURNED']
 
@@ -701,6 +706,81 @@ export default function OrderDetail() {
       setTimeout(invalidate, 2000)
     },
     onError: () => setBackorderResult('✗ Failed to queue sourcing task — check API logs'),
+  })
+
+  const approveMutation = useMutation({
+    mutationFn: () => approveOrder(id!),
+    onSuccess: invalidate,
+  })
+
+  const { data: returnsData, refetch: refetchReturns } = useQuery({
+    queryKey: ['order-returns', id],
+    queryFn: () => fetchOrderReturns(id!),
+    enabled: !!id,
+  })
+  const orderReturns: OrderReturn[] = returnsData?.items ?? []
+
+  const [returnReason, setReturnReason] = useState('DEFECTIVE')
+  const [returnNotes, setReturnNotes] = useState('')
+  const [returnItemQtys, setReturnItemQtys] = useState<Record<string, number>>({})
+  const [returnItemRestock, setReturnItemRestock] = useState<Record<string, boolean>>({})
+
+  const returnMutation = useMutation({
+    mutationFn: () => {
+      if (!order) throw new Error('No order')
+      const items = order.line_items
+        .filter(li => (returnItemQtys[li.id] ?? 0) > 0)
+        .map(li => ({
+          sku: li.sku,
+          description: li.product_name,
+          quantity_requested: returnItemQtys[li.id] ?? 0,
+          order_item_id: li.id,
+          restock: returnItemRestock[li.id] ?? true,
+        }))
+      return createReturn({
+        order_id: order.id,
+        reason: returnReason,
+        customer_notes: returnNotes || undefined,
+        items,
+      })
+    },
+    onSuccess: () => {
+      refetchReturns()
+      setShowInitiateReturn(false)
+      setReturnReason('DEFECTIVE')
+      setReturnNotes('')
+      setReturnItemQtys({})
+      setReturnItemRestock({})
+    },
+  })
+
+  // Refund from order detail
+  const [orderDetailRefundMethod, setOrderDetailRefundMethod] = useState('ORIGINAL_PAYMENT')
+  const [orderDetailRefundAmount, setOrderDetailRefundAmount] = useState('')
+  const [orderDetailRefundReason, setOrderDetailRefundReason] = useState('')
+  const [orderDetailRefundTxId, setOrderDetailRefundTxId] = useState('')
+  const [orderDetailRefundNotes, setOrderDetailRefundNotes] = useState('')
+
+  const returnRefundMutation = useMutation({
+    mutationFn: () => {
+      if (!returnRefundTarget) throw new Error('No return selected')
+      return createReturnRefund(returnRefundTarget.id, {
+        refund_method: orderDetailRefundMethod,
+        amount: orderDetailRefundAmount,
+        reason: orderDetailRefundReason,
+        transaction_id: orderDetailRefundTxId || undefined,
+        notes: orderDetailRefundNotes || undefined,
+      })
+    },
+    onSuccess: () => {
+      refetchReturns()
+      setReturnRefundTarget(null)
+      setOrderDetailRefundMethod('ORIGINAL_PAYMENT')
+      setOrderDetailRefundAmount('')
+      setOrderDetailRefundReason('')
+      setOrderDetailRefundTxId('')
+      setOrderDetailRefundNotes('')
+    },
   })
 
   if (isLoading) {
@@ -798,6 +878,55 @@ export default function OrderDetail() {
           </div>
         )}
       </div>
+
+      {/* B2B Banner — shown for B2B orders */}
+      {order.order_type === 'B2B' && (
+        <div className={`card p-4 border ${
+          order.approval_status === 'PENDING'
+            ? 'border-amber-200 bg-amber-50/40'
+            : order.approval_status === 'REJECTED'
+            ? 'border-red-200 bg-red-50/40'
+            : 'border-blue-100 bg-blue-50/20'
+        }`}>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Building2 className="w-4 h-4 text-blue-500 flex-shrink-0" />
+              <span className="text-sm font-semibold text-gray-700">B2B Order</span>
+              {order.po_number && (
+                <span className="text-xs bg-gray-100 text-gray-600 rounded px-2 py-0.5 font-mono">PO: {order.po_number}</span>
+              )}
+              <span className="text-xs bg-white border border-gray-200 text-gray-600 rounded px-2 py-0.5">
+                Terms: {order.payment_terms.replace('_', ' ')}
+              </span>
+              {order.payment_due_date && (
+                <span className="text-xs bg-white border border-gray-200 text-gray-600 rounded px-2 py-0.5 flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  Due: {order.payment_due_date.slice(0, 10)}
+                </span>
+              )}
+              <StatusBadge value={order.approval_status} />
+            </div>
+            {order.approval_status === 'PENDING' && (
+              <button
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-600 hover:bg-green-700 text-white flex-shrink-0"
+                disabled={approveMutation.isPending}
+                onClick={() => approveMutation.mutate()}
+              >
+                <ThumbsUp className="w-3.5 h-3.5" />
+                {approveMutation.isPending ? 'Approving...' : 'Approve Order'}
+              </button>
+            )}
+          </div>
+          {order.approval_status === 'PENDING' && (
+            <p className="text-xs text-amber-700 mt-2">
+              This order is awaiting approval. It will not be sourced or fulfilled until approved.
+            </p>
+          )}
+          {approveMutation.isError && (
+            <p className="text-xs text-red-600 mt-2">Failed to approve — check your permissions.</p>
+          )}
+        </div>
+      )}
 
       {/* Lifecycle Action Panel */}
       <LifecyclePanel
@@ -982,6 +1111,7 @@ export default function OrderDetail() {
                 <Truck className="w-4 h-4 text-gray-400" />
                 <h2 className="text-sm font-semibold text-gray-700">Shipments</h2>
               </div>
+
               {order.shipments.map((s, index) => {
                 const linkedById = s.allocation_id
                   ? order.fulfillment_allocations.find(a => a.id === s.allocation_id)
@@ -1057,6 +1187,100 @@ export default function OrderDetail() {
               })}
             </div>
           )}
+
+          {/* Returns */}
+          <div className="card overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <RotateCcw className="w-4 h-4 text-amber-500" />
+                <h2 className="text-sm font-semibold text-gray-700">Returns</h2>
+                {orderReturns.length > 0 && (
+                  <span className="text-xs text-gray-400">({orderReturns.length})</span>
+                )}
+              </div>
+              {(['DELIVERED', 'PICKED_UP', 'RETURNED'] as OrderStatus[]).includes(order.status) && (
+                <button
+                  className="btn-secondary text-xs py-1 px-2.5 flex items-center gap-1.5"
+                  onClick={() => setShowInitiateReturn(true)}
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Initiate Return
+                </button>
+              )}
+            </div>
+
+            {orderReturns.length === 0 ? (
+              <div className="px-5 py-6 text-center">
+                <p className="text-xs text-gray-400">No returns for this order.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {orderReturns.map(ret => (
+                  <div key={ret.id} className="p-4 space-y-3">
+                    {/* Return summary row */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-mono font-semibold text-gray-700">{ret.return_number}</span>
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                            ret.status === 'REQUESTED'  ? 'bg-gray-100 text-gray-700' :
+                            ret.status === 'APPROVED'   ? 'bg-blue-100 text-blue-700' :
+                            ret.status === 'IN_TRANSIT' ? 'bg-purple-100 text-purple-700' :
+                            ret.status === 'RECEIVED'   ? 'bg-amber-100 text-amber-700' :
+                            ret.status === 'RESTOCKED'  ? 'bg-teal-100 text-teal-700' :
+                            ret.status === 'COMPLETED'  ? 'bg-green-100 text-green-700' :
+                            ret.status === 'REJECTED'   ? 'bg-red-100 text-red-700' :
+                            'bg-gray-100 text-gray-600'
+                          }`}>
+                            {ret.status.replace(/_/g, ' ')}
+                          </span>
+                          <span className="text-xs text-gray-500">{ret.reason.replace(/_/g, ' ')}</span>
+                        </div>
+                        <p className="text-[10px] text-gray-400">
+                          Created {ret.created_at.slice(0, 10)}
+                          {ret.return_tracking_number && ` · Tracking: ${ret.return_tracking_number}`}
+                          {ret.return_carrier && ` via ${ret.return_carrier}`}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Items */}
+                    {ret.items.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {ret.items.map(item => (
+                          <span key={item.id} className="text-[10px] bg-gray-100 text-gray-600 rounded px-2 py-0.5 font-mono">
+                            {item.sku} ×{item.quantity_requested}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Refund sub-section */}
+                    {ret.refund ? (
+                      <div className="rounded-lg bg-green-50 border border-green-100 px-3 py-2 flex items-center gap-3 flex-wrap text-xs">
+                        <span className="font-mono font-semibold text-green-800">{ret.refund.refund_number}</span>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                          ret.refund.status === 'COMPLETED'  ? 'bg-green-100 text-green-700' :
+                          ret.refund.status === 'PROCESSING' ? 'bg-blue-100 text-blue-700' :
+                          ret.refund.status === 'FAILED'     ? 'bg-red-100 text-red-700' :
+                          'bg-gray-100 text-gray-600'
+                        }`}>{ret.refund.status}</span>
+                        <span className="text-gray-700 font-semibold">${ret.refund.amount} {ret.refund.currency}</span>
+                        <span className="text-gray-500">{ret.refund.refund_method.replace(/_/g, ' ')}</span>
+                      </div>
+                    ) : user?.is_superadmin && ['RECEIVED', 'COMPLETED'].includes(ret.status) ? (
+                      <button
+                        className="btn-primary text-xs py-1 px-2.5 flex items-center gap-1.5"
+                        onClick={() => setReturnRefundTarget(ret)}
+                      >
+                        Create Refund
+                      </button>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Right: Summary + Audit Trail */}
@@ -1140,6 +1364,195 @@ export default function OrderDetail() {
               onClick={() => cancelMutation.mutate()}
             >
               {cancelMutation.isPending ? 'Cancelling...' : 'Cancel Order'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Initiate Return Modal */}
+      <Modal
+        open={showInitiateReturn}
+        onClose={() => setShowInitiateReturn(false)}
+        title="Initiate Return"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="label">Reason *</label>
+            <select
+              className="select"
+              value={returnReason}
+              onChange={e => setReturnReason(e.target.value)}
+            >
+              {['DEFECTIVE', 'WRONG_ITEM', 'NOT_AS_DESCRIBED', 'CHANGED_MIND', 'DUPLICATE_ORDER', 'DAMAGED_IN_TRANSIT', 'OTHER'].map(r => (
+                <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">Customer Notes (optional)</label>
+            <textarea
+              className="input min-h-[64px] resize-none"
+              value={returnNotes}
+              onChange={e => setReturnNotes(e.target.value)}
+              placeholder="Customer explanation…"
+            />
+          </div>
+          <div>
+            <p className="label mb-2">Items to Return</p>
+            <div className="space-y-3">
+              {order.line_items.map(li => {
+                const qty = returnItemQtys[li.id] ?? 0
+                const restock = returnItemRestock[li.id] ?? true
+                return (
+                  <div key={li.id} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-mono font-semibold text-gray-700">{li.sku}</p>
+                      <p className="text-[10px] text-gray-500 truncate">{li.product_name}</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <label className="text-[10px] text-gray-500">Qty</label>
+                      <input
+                        type="range"
+                        min={0}
+                        max={li.quantity}
+                        value={qty}
+                        onChange={e =>
+                          setReturnItemQtys(prev => ({ ...prev, [li.id]: Number(e.target.value) }))
+                        }
+                        className="w-20"
+                      />
+                      <span className="text-xs font-semibold text-gray-700 w-6 text-right">{qty}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <input
+                        type="checkbox"
+                        id={`restock-${li.id}`}
+                        checked={restock}
+                        onChange={e =>
+                          setReturnItemRestock(prev => ({ ...prev, [li.id]: e.target.checked }))
+                        }
+                      />
+                      <label htmlFor={`restock-${li.id}`} className="text-[10px] text-gray-500 cursor-pointer">
+                        Restock
+                      </label>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            {order.line_items.every(li => (returnItemQtys[li.id] ?? 0) === 0) && (
+              <p className="text-[10px] text-amber-600 mt-2">Select at least one item with quantity &gt; 0.</p>
+            )}
+          </div>
+          {returnMutation.isError && (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded px-2 py-1">
+              {(() => {
+                const e = returnMutation.error as { response?: { data?: { detail?: unknown } } }
+                const detail = e?.response?.data?.detail
+                if (!detail) return 'An error occurred'
+                if (typeof detail === 'string') return detail
+                if (Array.isArray(detail)) return detail.map((d: { msg?: string }) => d.msg ?? JSON.stringify(d)).join('; ')
+                return JSON.stringify(detail)
+              })()}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            <button className="btn-secondary" onClick={() => setShowInitiateReturn(false)}>Cancel</button>
+            <button
+              className="btn-primary"
+              disabled={
+                returnMutation.isPending ||
+                order.line_items.every(li => (returnItemQtys[li.id] ?? 0) === 0)
+              }
+              onClick={() => returnMutation.mutate()}
+            >
+              {returnMutation.isPending ? 'Submitting…' : 'Submit Return'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Return Refund Modal */}
+      <Modal
+        open={!!returnRefundTarget}
+        onClose={() => setReturnRefundTarget(null)}
+        title={`Create Refund — ${returnRefundTarget?.return_number ?? ''}`}
+        size="sm"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="label">Refund Method</label>
+            <select
+              className="select"
+              value={orderDetailRefundMethod}
+              onChange={e => setOrderDetailRefundMethod(e.target.value)}
+            >
+              {['ORIGINAL_PAYMENT', 'STORE_CREDIT', 'BANK_TRANSFER', 'CHECK', 'OTHER'].map(m => (
+                <option key={m} value={m}>{m.replace(/_/g, ' ')}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">Amount</label>
+            <input
+              className="input"
+              type="number"
+              min="0"
+              step="0.01"
+              value={orderDetailRefundAmount}
+              onChange={e => setOrderDetailRefundAmount(e.target.value)}
+              placeholder="0.00"
+            />
+            <p className="text-[10px] text-gray-400 mt-0.5">Order total: ${order.total_amount}</p>
+          </div>
+          <div>
+            <label className="label">Reason *</label>
+            <input
+              className="input"
+              value={orderDetailRefundReason}
+              onChange={e => setOrderDetailRefundReason(e.target.value)}
+              placeholder="Refund reason"
+            />
+          </div>
+          <div>
+            <label className="label">Transaction ID (optional)</label>
+            <input
+              className="input"
+              value={orderDetailRefundTxId}
+              onChange={e => setOrderDetailRefundTxId(e.target.value)}
+              placeholder="Payment gateway transaction ID"
+            />
+          </div>
+          <div>
+            <label className="label">Notes (optional)</label>
+            <textarea
+              className="input min-h-[64px] resize-none"
+              value={orderDetailRefundNotes}
+              onChange={e => setOrderDetailRefundNotes(e.target.value)}
+              placeholder="Additional notes…"
+            />
+          </div>
+          {returnRefundMutation.isError && (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded px-2 py-1">
+              {(() => {
+                const e = returnRefundMutation.error as { response?: { data?: { detail?: unknown } } }
+                const detail = e?.response?.data?.detail
+                if (!detail) return 'An error occurred'
+                if (typeof detail === 'string') return detail
+                if (Array.isArray(detail)) return detail.map((d: { msg?: string }) => d.msg ?? JSON.stringify(d)).join('; ')
+                return JSON.stringify(detail)
+              })()}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            <button className="btn-secondary" onClick={() => setReturnRefundTarget(null)}>Cancel</button>
+            <button
+              className="btn-primary"
+              disabled={returnRefundMutation.isPending || !orderDetailRefundReason || !orderDetailRefundAmount}
+              onClick={() => returnRefundMutation.mutate()}
+            >
+              {returnRefundMutation.isPending ? 'Saving…' : 'Create Refund'}
             </button>
           </div>
         </div>

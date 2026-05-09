@@ -10,10 +10,13 @@ import {
 } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 
+export type TenantMode = 'B2C_ONLY' | 'B2B_ONLY' | 'HYBRID'
+
 export interface Environment {
   id: string
   organization_id: string
   organization_name: string
+  tenant_mode: TenantMode
   name: string
   slug: string
   env_type: 'DEV' | 'QA' | 'STAGING' | 'PROD'
@@ -33,6 +36,9 @@ interface EnvironmentContextValue {
   currentEnv: Environment | null
   environments: Environment[]
   isLoading: boolean
+  tenantMode: TenantMode
+  isB2BEnabled: boolean
+  isB2CEnabled: boolean
   switchEnvironment: (env: Environment) => void
   refreshEnvironments: () => void
 }
@@ -71,6 +77,10 @@ export function EnvironmentProvider({ children }: { children: ReactNode }) {
     () => environments.find(e => e.id === currentEnvId) ?? null,
     [environments, currentEnvId],
   )
+
+  const tenantMode: TenantMode = currentEnv?.tenant_mode ?? 'HYBRID'
+  const isB2BEnabled = tenantMode !== 'B2C_ONLY'
+  const isB2CEnabled = tenantMode !== 'B2B_ONLY'
 
   // Invalidate query cache AFTER React commits the currentEnvId change.
   // Moving this out of switchEnvironment prevents TanStack Query's
@@ -156,7 +166,7 @@ export function EnvironmentProvider({ children }: { children: ReactNode }) {
 
   return (
     <EnvironmentContext.Provider
-      value={{ currentEnv, environments, isLoading, switchEnvironment, refreshEnvironments }}
+      value={{ currentEnv, environments, isLoading, tenantMode, isB2BEnabled, isB2CEnabled, switchEnvironment, refreshEnvironments }}
     >
       {children}
     </EnvironmentContext.Provider>

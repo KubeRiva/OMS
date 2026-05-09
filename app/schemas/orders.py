@@ -1,11 +1,11 @@
-from pydantic import BaseModel, Field, EmailStr, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, EmailStr, field_validator, model_validator
 from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
 from decimal import Decimal
 from app.models.postgres.order_models import (
     OrderChannel, FulfillmentType, OrderStatus, PaymentStatus,
-    AllocationStatus, ShipmentStatus
+    AllocationStatus, ShipmentStatus, OrderType, PaymentTerms, ApprovalStatus,
 )
 
 
@@ -32,16 +32,39 @@ class ShippingAddressCreate(BaseModel):
     longitude: Optional[float] = Field(None, ge=-180, le=180)
 
 
+class BillingAddressCreate(BaseModel):
+    name: Optional[str] = None
+    address1: Optional[str] = None
+    address2: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    postal_code: Optional[str] = None
+    country: str = "US"
+
+
 class OrderCreate(BaseModel):
     channel: OrderChannel
+    order_type: OrderType = OrderType.RETAIL
     fulfillment_type: FulfillmentType
     customer_email: EmailStr
     customer_phone: Optional[str] = None
     customer_name: Optional[str] = None
     customer_id: Optional[str] = None
+
+    # B2B fields
+    customer_account_id: Optional[UUID] = None
+    po_number: Optional[str] = Field(default=None, max_length=100)
+    payment_terms: PaymentTerms = PaymentTerms.PREPAID
+    billing_address: Optional[BillingAddressCreate] = None
+
+    # Brand (optional — NULL means unbranded / legacy)
+    brand_id: Optional[UUID] = None
+    # Seller brand (marketplace / B2B2C): who prices/fulfills; defaults to brand_id when null
+    seller_brand_id: Optional[UUID] = None
+
     line_items: List[OrderItemCreate] = Field(..., min_length=1)
     shipping_address: Optional[ShippingAddressCreate] = None
-    pickup_node_id: Optional[UUID] = None  # for BOPIS/curbside
+    pickup_node_id: Optional[UUID] = None
     currency: str = Field(default="USD", max_length=3)
     discount_amount: Decimal = Field(default=Decimal("0.00"), ge=0)
     shipping_amount: Decimal = Field(default=Decimal("0.00"), ge=0)
@@ -60,7 +83,6 @@ class OrderCreate(BaseModel):
     @field_validator("pickup_node_id")
     @classmethod
     def validate_pickup_node(cls, v, info):
-        # pickup_node_id required for pickup fulfillment types
         return v
 
 
@@ -69,6 +91,8 @@ class OrderUpdate(BaseModel):
     payment_status: Optional[PaymentStatus] = None
     notes: Optional[str] = None
     tags: Optional[List[str]] = None
+    po_number: Optional[str] = None
+    payment_terms: Optional[PaymentTerms] = None
 
 
 class OrderItemResponse(BaseModel):
@@ -113,8 +137,6 @@ class AllocationResponse(BaseModel):
     def _extract_node(cls, v):
         if isinstance(v, dict):
             return v
-        # Read ALL data via __dict__ to completely bypass SQLAlchemy descriptors
-        # and avoid any lazy-load that would fail in a sync Pydantic context.
         d = v.__dict__
         node = d.get('node')
         node_d = node.__dict__ if node is not None else {}
@@ -159,19 +181,35 @@ class OrderResponse(BaseModel):
     id: UUID
     order_number: str
     channel: OrderChannel
+    order_type: OrderType
     fulfillment_type: FulfillmentType
     status: OrderStatus
     payment_status: PaymentStatus
+
+    # Customer
     customer_id: Optional[str] = None
     customer_email: str
     customer_phone: Optional[str] = None
     customer_name: Optional[str] = None
+    customer_account_id: Optional[UUID] = None
+
+    # B2B
+    po_number: Optional[str] = None
+    payment_terms: PaymentTerms
+    approval_status: ApprovalStatus
+    approved_by_id: Optional[UUID] = None
+    approved_at: Optional[datetime] = None
+    payment_due_date: Optional[datetime] = None
+
+    # Financial
     subtotal: Decimal
     tax_amount: Decimal
     shipping_amount: Decimal
     discount_amount: Decimal
     total_amount: Decimal
     currency: str
+
+    # Shipping
     shipping_name: Optional[str] = None
     shipping_address1: Optional[str] = None
     shipping_address2: Optional[str] = None
@@ -179,6 +217,20 @@ class OrderResponse(BaseModel):
     shipping_state: Optional[str] = None
     shipping_postal_code: Optional[str] = None
     shipping_country: Optional[str] = None
+
+    # Billing
+    billing_name: Optional[str] = None
+    billing_address1: Optional[str] = None
+    billing_address2: Optional[str] = None
+    billing_city: Optional[str] = None
+    billing_state: Optional[str] = None
+    billing_postal_code: Optional[str] = None
+    billing_country: Optional[str] = None
+
+    # Brand fields
+    brand_id: Optional[UUID] = None
+    seller_brand_id: Optional[UUID] = None
+
     pickup_node_id: Optional[UUID] = None
     pickup_ready_at: Optional[datetime] = None
     lifecycle_id: Optional[UUID] = None
@@ -215,12 +267,48 @@ class CancelOrderRequest(BaseModel):
     notify_customer: bool = True
 
 
+class OrderApprovalUpdate(BaseModel):
+    """Approve or reject a B2B order that is pending approval."""
+    approved: bool
+    notes: Optional[str] = None
+
+
 class OrderFilterParams(BaseModel):
     status: Optional[OrderStatus] = None
     channel: Optional[OrderChannel] = None
+    order_type: Optional[OrderType] = None
     fulfillment_type: Optional[FulfillmentType] = None
     customer_email: Optional[str] = None
+    customer_account_id: Optional[UUID] = None
+    approval_status: Optional[ApprovalStatus] = None
     from_date: Optional[datetime] = None
     to_date: Optional[datetime] = None
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=20, ge=1, le=100)
+
+
+class PaymentStatusUpdate(BaseModel):
+    payment_status: PaymentStatus
+    transaction_id: Optional[str] = Field(default=None, max_length=200)
+    notes: Optional[str] = None
+
+
+class OrderEdit(BaseModel):
+    # Only the fields that are safe to edit post-creation
+    customer_name: Optional[str] = None
+    customer_email: Optional[EmailStr] = None
+    customer_phone: Optional[str] = None
+
+    # Shipping address fields
+    shipping_address1: Optional[str] = None
+    shipping_address2: Optional[str] = None
+    shipping_city: Optional[str] = None
+    shipping_state: Optional[str] = None
+    shipping_postal_code: Optional[str] = None
+    shipping_country: Optional[str] = None
+    shipping_name: Optional[str] = None
+
+    # Notes
+    notes: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid")

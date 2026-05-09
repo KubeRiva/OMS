@@ -52,6 +52,23 @@ async def login(request: Request, response: Response, payload: LoginRequest, db:
     elif user.group and user.group.permissions:
         permissions = user.group.permissions
 
+    # Resolve brand_ids for the token.
+    # Superadmins and Platform Owners get null (no restriction).
+    # Regular users get the list of brand UUIDs they are assigned to across
+    # all environments — the brand dependency narrows further by environment
+    # at request time, but embedding the full list here avoids a DB round-trip
+    # on the common path. An empty list means no brand access.
+    brand_ids_for_token: list[str] | None = None
+    if not is_superadmin:
+        try:
+            from app.models.postgres.user_brand_role_models import UserBrandRole
+            brand_rows = await db.execute(
+                select(UserBrandRole.brand_id).where(UserBrandRole.user_id == user.id)
+            )
+            brand_ids_for_token = [str(bid) for bid in brand_rows.scalars().all()]
+        except Exception:
+            brand_ids_for_token = []
+
     token_data = {
         "sub": str(user.id),
         "email": user.email,
@@ -59,6 +76,7 @@ async def login(request: Request, response: Response, payload: LoginRequest, db:
         "is_superadmin": is_superadmin,
         "platform_role": platform_role,
         "permissions": permissions,
+        "brand_ids": brand_ids_for_token,
     }
     access_token = create_access_token(token_data)
 

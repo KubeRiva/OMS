@@ -38,33 +38,35 @@ export default function ProtectedRoute({
 
   if (requireSuperadmin && !user?.is_superadmin) {
     return (
-      <div className="flex flex-col items-center justify-center h-full py-24 text-center">
+      <div className="flex flex-col items-center justify-center h-full py-24 text-center px-4">
         <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
           <svg className="w-8 h-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
           </svg>
         </div>
-        <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
-        <p className="text-gray-500">You need administrator privileges to access this page.</p>
+        <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Restricted</h2>
+        <p className="text-gray-500 max-w-sm">This section requires administrator privileges. Your current role does not include access to this area.</p>
+        <p className="text-gray-400 text-sm mt-2">Contact your platform administrator for assistance.</p>
       </div>
     )
   }
 
   if (permission && !hasPermission(permission)) {
     return (
-      <div className="flex flex-col items-center justify-center h-full py-24 text-center">
+      <div className="flex flex-col items-center justify-center h-full py-24 text-center px-4">
         <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mb-4">
           <svg className="w-8 h-8 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
           </svg>
         </div>
-        <h2 className="text-xl font-semibold text-gray-900 mb-2">Permission Required</h2>
-        <p className="text-gray-500">
-          You don't have the <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">{permission}</code> permission.
+        <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Restricted</h2>
+        <p className="text-gray-500 max-w-sm">
+          Your account does not have access to this section.
+          The <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">{permission}</code> permission is required.
         </p>
-        <p className="text-gray-400 text-sm mt-1">Contact your administrator to request access.</p>
+        <p className="text-gray-400 text-sm mt-2">Contact your administrator to request access to this feature.</p>
       </div>
     )
   }

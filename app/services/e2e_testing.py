@@ -1558,6 +1558,7 @@ class E2ETestService:
     async def cleanup(self) -> Dict[str, int]:
         """Delete all test data created during testing."""
         deleted_counts = {}
+        all_cleaned_order_ids: List[str] = []
 
         try:
             # ── Step 1: delete orders tracked by this run ─────────────────────
@@ -1568,6 +1569,7 @@ class E2ETestService:
                 await self.db.execute(delete(FulfillmentAllocation).where(FulfillmentAllocation.order_id == order_id))
                 await self.db.execute(delete(OrderItem).where(OrderItem.order_id == order_id))
                 await self.db.execute(delete(Order).where(Order.id == order_id))
+                all_cleaned_order_ids.append(str(order_id))
 
             deleted_counts["orders"] = len(self.test_resources["orders"])
 
@@ -1592,13 +1594,37 @@ class E2ETestService:
                 await self.db.execute(delete(FulfillmentAllocation).where(FulfillmentAllocation.order_id == order_id))
                 await self.db.execute(delete(OrderItem).where(OrderItem.order_id == order_id))
                 await self.db.execute(delete(Order).where(Order.id == order_id))
+                all_cleaned_order_ids.append(str(order_id))
 
             deleted_counts["orphaned_orders"] = len(orphan_ids)
 
+            # ── Step 2b: sweep by test email patterns (catches ORD-* API orders) ──
+            # Matches orders created by ApiIntegrationTestService and E2E scenarios
+            # that use the standard ORD-YYYYMMDD-XXXXX numbering.
+            email_order_result = await self.db.execute(
+                select(Order.id).where(
+                    or_(
+                        Order.customer_email.like("%.uat@example.com"),
+                        Order.customer_email.like("%@test.internal"),
+                        Order.customer_email.like("test-e2e@example.com"),
+                        Order.customer_email.like("cancel.test@example.com"),
+                        Order.customer_email.like("lifecycle.test@example.com"),
+                        Order.customer_email.like("%@test.com"),
+                    )
+                )
+            )
+            email_order_ids = [row[0] for row in email_order_result.fetchall()]
+            for order_id in email_order_ids:
+                await self.db.execute(delete(WebhookEvent).where(WebhookEvent.order_id == order_id))
+                await self.db.execute(delete(ConnectorEvent).where(ConnectorEvent.order_id == order_id))
+                await self.db.execute(delete(Shipment).where(Shipment.order_id == order_id))
+                await self.db.execute(delete(FulfillmentAllocation).where(FulfillmentAllocation.order_id == order_id))
+                await self.db.execute(delete(OrderItem).where(OrderItem.order_id == order_id))
+                await self.db.execute(delete(Order).where(Order.id == order_id))
+                all_cleaned_order_ids.append(str(order_id))
+            deleted_counts["email_pattern_orders"] = len(email_order_ids)
+
             # ── Step 3: permanently delete ALL E2E-SKU inventory ─────────────
-            # This removes items from BOTH the temp test nodes (created this run)
-            # AND any old E2E-SKU rows left on real DC-EAST/DC-WEST nodes.
-            # Must delete FK-referencing adjustments first.
             e2e_ids = (
                 await self.db.execute(
                     select(InventoryItem.id).where(InventoryItem.sku.like("E2E-SKU-%"))
@@ -1641,6 +1667,17 @@ class E2ETestService:
             )
             orphan_node_ids = [row[0] for row in orphan_nodes_result.fetchall()]
             for node_id in orphan_node_ids:
+                node_inv_ids = (
+                    await self.db.execute(
+                        select(InventoryItem.id).where(InventoryItem.node_id == node_id)
+                    )
+                ).scalars().all()
+                if node_inv_ids:
+                    await self.db.execute(
+                        delete(InventoryAdjustment).where(
+                            InventoryAdjustment.inventory_item_id.in_(node_inv_ids)
+                        )
+                    )
                 await self.db.execute(delete(InventoryItem).where(InventoryItem.node_id == node_id))
                 await self.db.execute(delete(FulfillmentNode).where(FulfillmentNode.id == node_id))
 
@@ -1653,7 +1690,15 @@ class E2ETestService:
 
             # ── Step 7: sweep orphaned test users from any previous run ───────
             orphan_users_result = await self.db.execute(
-                select(User.id).where(User.email.like("test_%@example.com"))
+                select(User.id).where(
+                    or_(
+                        User.email.like("test_%@example.com"),
+                        User.email.like("e2e_%@test.internal"),
+                        User.email.like("uat.reg.%@example.com"),
+                        User.email.like("test.uat@example.com"),
+                        User.email.like("cancel.uat@example.com"),
+                    )
+                )
             )
             orphan_user_ids = [row[0] for row in orphan_users_result.fetchall()]
             for user_id in orphan_user_ids:
@@ -1666,5 +1711,26 @@ class E2ETestService:
         except Exception as e:
             await self.db.rollback()
             raise Exception(f"Cleanup failed: {str(e)}")
+
+        # ── Step 8: MongoDB – purge order_events for all cleaned orders ───────
+        # Non-critical: log warning on failure rather than raising.
+        if all_cleaned_order_ids:
+            try:
+                from motor.motor_asyncio import AsyncIOMotorClient
+                from app.config import settings
+                client = AsyncIOMotorClient(
+                    settings.MONGODB_URL, serverSelectionTimeoutMS=3000,
+                    uuidRepresentation="standard",
+                )
+                try:
+                    result = await client[settings.MONGODB_DB].order_events.delete_many(
+                        {"order_id": {"$in": all_cleaned_order_ids}}
+                    )
+                    deleted_counts["mongo_events"] = result.deleted_count
+                finally:
+                    client.close()
+            except Exception as mongo_err:
+                logger.warning("E2E MongoDB cleanup failed (non-critical): %s", mongo_err)
+                deleted_counts["mongo_events"] = 0
 
         return deleted_counts

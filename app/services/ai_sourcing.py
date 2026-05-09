@@ -65,6 +65,7 @@ class AISourcingAdvisor:
         region: str,
         amount_bucket: str,
         fulfillment_type: str,
+        brand_slug: str = "default",
     ) -> AIAdvisorResult:
         """
         Score each candidate node for the given order using KubeAI.
@@ -79,7 +80,7 @@ class AISourcingAdvisor:
 
         # 1. Fetch context from MongoDB
         patterns, node_metrics, sample_size = await self._fetch_context(
-            channel, region, amount_bucket, fulfillment_type,
+            channel, region, amount_bucket, fulfillment_type, brand_slug,
             [str(c.node.id) for c in candidates],
         )
 
@@ -92,7 +93,7 @@ class AISourcingAdvisor:
             )
 
         # 3. Build the prompt
-        prompt = self._build_prompt(order, candidates, patterns, node_metrics, channel, region)
+        prompt = self._build_prompt(order, candidates, patterns, node_metrics, channel, region, brand_slug)
 
         # 4. Call KubeAI
         try:
@@ -154,6 +155,7 @@ class AISourcingAdvisor:
         region: str,
         amount_bucket: str,
         fulfillment_type: str,
+        brand_slug: str,
         candidate_node_ids: list[str],
     ) -> tuple[list[dict], list[dict], int]:
         """Fetch matching patterns and node metrics from MongoDB.
@@ -171,19 +173,20 @@ class AISourcingAdvisor:
                 db = client[settings.MONGODB_AI_DB]
 
                 # Look for the matching cluster pattern (exact + relaxed fallbacks)
-                cluster_key = f"{channel}|{region}|{amount_bucket}|{fulfillment_type}"
+                # Cluster key format: brand_slug|channel|region|amount_bucket|fulfillment_type
+                cluster_key = f"{brand_slug}|{channel}|{region}|{amount_bucket}|{fulfillment_type}"
                 pattern_doc = await db.sourcing_patterns.find_one({"cluster_key": cluster_key})
 
-                # Relaxed fallback: same channel + fulfillment_type, any region/amount
+                # Relaxed fallback: same brand + channel + fulfillment_type, any region/amount
                 patterns = []
                 sample_size = 0
                 if pattern_doc:
                     patterns.append(pattern_doc)
                     sample_size = pattern_doc.get("sample_count", 0)
                 else:
-                    # Broader match: channel + fulfillment_type only
+                    # Broader match: brand + channel + fulfillment_type only
                     cursor = db.sourcing_patterns.find(
-                        {"channel": channel, "fulfillment_type": fulfillment_type},
+                        {"brand_slug": brand_slug, "channel": channel, "fulfillment_type": fulfillment_type},
                         limit=3,
                     ).sort("sample_count", -1)
                     broader = await cursor.to_list(length=3)
@@ -214,6 +217,7 @@ class AISourcingAdvisor:
         node_metrics: list[dict],
         channel: str,
         region: str,
+        brand_slug: str = "default",
     ) -> str:
         """Build the structured KubeAI prompt for node scoring."""
         # Serialize candidates
@@ -264,9 +268,15 @@ class AISourcingAdvisor:
                 })
 
         amount = float(order.total_amount or 0)
+        order_type = getattr(order, "order_type", None)
+        payment_terms = getattr(order, "payment_terms", None)
         order_summary = {
+            "brand_slug": brand_slug,
             "channel": channel,
             "fulfillment_type": order.fulfillment_type.value if order.fulfillment_type else "SHIP_TO_HOME",
+            "order_type": order_type.value if hasattr(order_type, "value") else str(order_type or "RETAIL"),
+            "is_b2b": getattr(order, "customer_account_id", None) is not None,
+            "payment_terms": payment_terms.value if hasattr(payment_terms, "value") else str(payment_terms or "PREPAID"),
             "customer_region": region,
             "order_amount": f"${amount:.2f}",
             "sku_count": len(order.line_items),

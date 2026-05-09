@@ -1,8 +1,8 @@
 import { useState, useRef, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Search as SearchIcon, ArrowRight, Clock, Package } from 'lucide-react'
-import { searchOrders, type SearchHit } from '../api/client'
+import { Search as SearchIcon, ArrowRight, Clock, Package, Tag } from 'lucide-react'
+import { searchOrders, getBrands, type SearchHit, type Brand } from '../api/client'
 import { StatusBadge } from '../components/Badge'
 
 function Highlight({ text, query }: { text: string; query: string }) {
@@ -20,7 +20,7 @@ function Highlight({ text, query }: { text: string; query: string }) {
   )
 }
 
-function ResultCard({ hit, query }: { hit: SearchHit; query: string }) {
+function ResultCard({ hit, query, brands }: { hit: SearchHit; query: string; brands: Brand[] }) {
   const src = hit.source
   const orderId = String(src.id ?? hit.id)
   const orderNumber = String(src.order_number ?? '')
@@ -31,6 +31,8 @@ function ResultCard({ hit, query }: { hit: SearchHit; query: string }) {
   const totalAmount = String(src.total_amount ?? '')
   const createdAt = String(src.created_at ?? '')
   const lineItems = Array.isArray(src.line_items) ? src.line_items as Array<{ sku: string; quantity: number }> : []
+  const brandId = src.brand_id ? String(src.brand_id) : undefined
+  const brand = brandId ? brands.find(b => b.id === brandId) : undefined
 
   return (
     <Link
@@ -48,6 +50,11 @@ function ResultCard({ hit, query }: { hit: SearchHit; query: string }) {
             </span>
             {status && <StatusBadge value={status} />}
             {channel && <StatusBadge value={channel} />}
+            {brand && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 font-mono">
+                <Tag className="w-2.5 h-2.5" />{brand.slug}
+              </span>
+            )}
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-gray-500">
             <span>
@@ -87,11 +94,18 @@ function ResultCard({ hit, query }: { hit: SearchHit; query: string }) {
 export default function Search() {
   const [input, setInput] = useState('')
   const [query, setQuery] = useState('')
+  const [brandFilter, setBrandFilter] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
+  const { data: brandsData } = useQuery({
+    queryKey: ['brands', 'active'],
+    queryFn: () => getBrands({ is_active: true }),
+  })
+  const brands: Brand[] = brandsData ?? []
+
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['search', query],
-    queryFn: () => searchOrders(query),
+    queryKey: ['search', query, brandFilter],
+    queryFn: () => searchOrders(query, 1, brandFilter || undefined),
     enabled: query.trim().length >= 2,
     staleTime: 10_000,
   })
@@ -104,6 +118,7 @@ export default function Search() {
   const handleClear = () => {
     setInput('')
     setQuery('')
+    setBrandFilter('')
     inputRef.current?.focus()
   }
 
@@ -157,6 +172,21 @@ export default function Search() {
         )}
       </form>
 
+      {/* Brand filter */}
+      {brands.length > 0 && (
+        <div className="flex items-center gap-2">
+          <Tag className="w-4 h-4 text-gray-400 flex-shrink-0" />
+          <select
+            className="select text-sm"
+            value={brandFilter}
+            onChange={e => setBrandFilter(e.target.value)}
+          >
+            <option value="">All Brands</option>
+            {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+        </div>
+      )}
+
       {/* Results */}
       {(isLoading || isFetching) && hasQuery && (
         <div className="space-y-3">
@@ -180,7 +210,7 @@ export default function Search() {
             <span className="font-semibold text-gray-700">"{query}"</span>
           </p>
           {hits.map(hit => (
-            <ResultCard key={hit.id} hit={hit} query={query} />
+            <ResultCard key={hit.id} hit={hit} query={query} brands={brands} />
           ))}
         </div>
       )}

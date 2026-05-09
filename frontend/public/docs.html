@@ -679,6 +679,12 @@
   <a href="#api-webhooks">Webhooks</a>
   <a href="#api-connectors">Connectors</a>
   <a href="#api-architect">AI Architect</a>
+  <a href="#api-brands">Brands</a>
+  <a href="#api-invoices">Invoices</a>
+  <a href="#api-keys">API Keys</a>
+  <a href="#api-brand-access">Brand Access</a>
+  <a href="#api-distribution-groups">Distribution Groups</a>
+  <a href="#api-lifecycles">Lifecycles</a>
 
   <div class="nav-section">Engine & Workers</div>
   <a href="#sourcing-engine">Sourcing Engine</a>
@@ -688,6 +694,11 @@
   <a href="#webhook-system">Webhook System</a>
   <a href="#connector-system">Connector System</a>
   <a href="#monitoring">Monitoring &amp; Traceability</a>
+  <a href="#sla-detection">SLA Breach Detection</a>
+  <a href="#worker-reliability">Worker Reliability</a>
+
+  <div class="nav-section">Multi-Brand</div>
+  <a href="#brand-entity">Brand Entity</a>
 
   <div class="nav-section">Admin Console</div>
   <a href="#admin-console">Admin Console Overview</a>
@@ -707,6 +718,15 @@
   <a href="#env-deployment">Deployment (Docker Compose)</a>
   <a href="#request-routing">Request Routing</a>
   <a href="#data-isolation">Data Isolation</a>
+
+  <div class="nav-section">B2B Commerce</div>
+  <a href="#b2b-overview">B2B Overview</a>
+  <a href="#b2b-accounts">Customer Accounts</a>
+  <a href="#b2b-orders">B2B Order Lifecycle</a>
+  <a href="#b2b-approval">Approval Workflow</a>
+  <a href="#b2b-sourcing">B2B Sourcing Rules</a>
+  <a href="#b2b-api">B2B API Reference</a>
+  <a href="#api-invoices">Invoices</a>
 
   <div class="nav-section">Operations</div>
   <a href="#config">Configuration</a>
@@ -763,7 +783,7 @@
   </div>
 
   <div class="callout success">
-    <p><strong>Quick start:</strong> Run <code>docker compose up -d --build</code> then seed with <code>docker compose exec api python scripts/seed.py</code> to get a fully operational system with 8 nodes, 64 inventory records, and 5 sourcing rules. A default organization and Production environment are seeded automatically on first startup.</p>
+    <p><strong>Quick start:</strong> Run <code>docker compose up -d --build</code> then seed with <code>docker compose exec api python scripts/seed.py</code> to get a fully operational system with 8 nodes, 64 inventory records, 5 retail sourcing rules, 4 B2B customer accounts, 3 B2B sourcing rules, 7 sample orders (3 retail + 4 B2B), and 8 MongoDB B2B order events. A default organization and Production environment are seeded automatically on first startup.</p>
   </div>
 </section>
 
@@ -943,6 +963,23 @@
       </tbody>
     </table>
   </div>
+
+  <h3>brands</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>UUID PK</td><td>Brand identifier</td></tr>
+        <tr><td><code>slug</code></td><td>VARCHAR(80) UNIQUE</td><td>URL-safe identifier e.g. <code>retailco</code></td></tr>
+        <tr><td><code>name</code></td><td>VARCHAR(200)</td><td>Display name</td></tr>
+        <tr><td><code>tenant_mode</code></td><td>ENUM</td><td><code>B2C_ONLY</code>, <code>B2B_ONLY</code>, <code>HYBRID</code></td></tr>
+        <tr><td><code>description</code></td><td>TEXT</td><td>Optional description</td></tr>
+        <tr><td><code>is_active</code></td><td>BOOL</td><td>Inactive brands are hidden from UI filter dropdowns</td></tr>
+        <tr><td><code>created_at / updated_at</code></td><td>TIMESTAMPTZ</td><td>Auto-managed</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>A nullable <code>brand_id UUID FK → brands.id</code> column is added to: <code>orders</code>, <code>sourcing_rules</code>, <code>customer_accounts</code>, and <code>connectors</code>. <code>NULL brand_id</code> means unbranded / legacy data and is fully backward-compatible.</p>
 
   <h3>orders</h3>
   <div class="table-wrap">
@@ -1699,6 +1736,132 @@ else:
   </div>
 </section>
 
+<!-- ══ BRANDS API ══ -->
+<section id="api-brands">
+  <h2><span class="section-num">16</span> Brands API <code style="font-size:14px">/brands</code></h2>
+
+  <p>
+    A <strong>Brand</strong> is a logical business identity within an environment — for example
+    <em>RetailCo</em> (B2C) and <em>WholesaleCo</em> (B2B) can coexist in the same environment,
+    sharing fulfillment nodes and inventory while maintaining isolated sourcing rules, customer accounts,
+    and connector configurations. Brand assignment is optional; <code>NULL brand_id</code> means
+    unbranded / legacy data and is fully backward-compatible.
+  </p>
+
+  <h3>Endpoints</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td><code>/brands/</code></td>
+          <td>Superadmin</td>
+          <td>Create a brand. 409 if slug already exists.</td>
+        </tr>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td><code>/brands/</code></td>
+          <td>Superadmin</td>
+          <td>List brands. Query: <code>is_active</code>, <code>tenant_mode</code>, <code>limit</code>, <code>offset</code>. Response includes <code>order_count</code>, <code>rule_count</code>, <code>account_count</code>.</td>
+        </tr>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td><code>/brands/{id}</code></td>
+          <td>Superadmin</td>
+          <td>Fetch a single brand with child counts.</td>
+        </tr>
+        <tr>
+          <td><span class="method method-patch">PATCH</span></td>
+          <td><code>/brands/{id}</code></td>
+          <td>Superadmin</td>
+          <td>Update name, description, tenant_mode, is_active. Slug is immutable after creation.</td>
+        </tr>
+        <tr>
+          <td><span class="method method-delete">DELETE</span></td>
+          <td><code>/brands/{id}</code></td>
+          <td>Superadmin</td>
+          <td>Delete brand. 409 if any orders, rules, or accounts are linked.</td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td><code>/brands/{id}/toggle</code></td>
+          <td>Superadmin</td>
+          <td>Toggle <code>is_active</code>. Inactive brands are hidden from filter dropdowns.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Create brand — payload</h3>
+  <pre data-lang="json">{
+  "slug": "retailco",
+  "name": "RetailCo",
+  "tenant_mode": "B2C_ONLY",
+  "description": "Direct-to-consumer retail brand"
+}</pre>
+
+  <h3>Brand response</h3>
+  <pre data-lang="json">{
+  "id": "a1b2c3d4-...",
+  "slug": "retailco",
+  "name": "RetailCo",
+  "tenant_mode": "B2C_ONLY",
+  "description": "Direct-to-consumer retail brand",
+  "is_active": true,
+  "created_at": "2026-05-07T21:00:00Z",
+  "updated_at": "2026-05-07T21:00:00Z",
+  "order_count": 3,
+  "rule_count": 5,
+  "account_count": 0
+}</pre>
+
+  <h3>Tenant modes</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Value</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>B2C_ONLY</code></td><td>Retail / direct-to-consumer. B2B account creation blocked for this brand.</td></tr>
+        <tr><td><code>B2B_ONLY</code></td><td>Wholesale / contract only. B2C order paths hidden in UI for this brand.</td></tr>
+        <tr><td><code>HYBRID</code></td><td>Both B2B and B2C active (default for new brands).</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Using brand_id on other resources</h3>
+  <p>Pass <code>brand_id</code> when creating orders, sourcing rules, customer accounts, or connectors to associate them with a brand. All list endpoints accept <code>?brand_id=&lt;uuid&gt;</code> as a filter parameter.</p>
+  <pre data-lang="json">// Create an order for the RetailCo brand
+POST /orders/
+{
+  "order_number": "ORD-2026-001",
+  "brand_id": "a1b2c3d4-...",
+  "channel": "WEB",
+  ...
+}
+
+// Create a sourcing rule that only applies to RetailCo
+POST /sourcing-rules/
+{
+  "name": "RetailCo → Nearest Store",
+  "brand_id": "a1b2c3d4-...",
+  "conditions": [
+    { "field": "brand_slug", "operator": "EQUALS", "value": "retailco" }
+  ],
+  "strategy": "STORE_NEAREST"
+}</pre>
+
+  <h3>Connector brand stamping</h3>
+  <p>
+    When a Shopify or Amazon connector has a <code>brand_id</code> configured, all inbound orders from that connector
+    are automatically stamped with that brand. No manual tagging is required at the order level.
+  </p>
+  <div class="callout">
+    <p><strong>AI learning:</strong> The sourcing outcome cluster key now includes brand slug:
+    <code>brand_slug|channel|region|amount_bucket|fulfillment_type</code>. Legacy (pre-brand) patterns
+    default to brand slug <code>"default"</code> and remain valid.</p>
+  </div>
+</section>
+
 <!-- ══ SOURCING ENGINE ══ -->
 <section id="sourcing-engine">
   <h2><span class="section-num">16</span> Sourcing Rules Engine</h2>
@@ -2075,7 +2238,7 @@ SOURCING ──► SOURCED
       <thead><tr><th>Queue</th><th>Worker File</th><th>Tasks</th></tr></thead>
       <tbody>
         <tr><td><code>sourcing</code></td><td><code>workers/sourcing.py</code></td><td><code>source_order</code> — runs the full sourcing engine; writes <code>sourcing_outcomes</code> to MongoDB</td></tr>
-        <tr><td><code>fulfillment</code></td><td><code>workers/fulfillment.py</code></td><td><code>start_picking</code>, <code>complete_packing</code>, <code>reset_node_daily_counters</code></td></tr>
+        <tr><td><code>fulfillment</code></td><td><code>workers/fulfillment.py</code></td><td><code>start_picking</code> (Redis idempotency lock), <code>complete_packing</code>, <code>reset_node_daily_counters</code>, <code>check_sla_breaches</code></td></tr>
         <tr><td><code>carrier</code></td><td><code>workers/carrier.py</code></td><td><code>book_shipment</code>, <code>simulate_delivery</code>, <code>sync_all_tracking</code></td></tr>
         <tr><td><code>notifications</code></td><td><code>workers/notifications.py</code></td><td><code>send_order_confirmation</code>, <code>send_shipment_notification</code>, <code>send_delivery_notification</code>, <code>send_cancellation_notification</code></td></tr>
         <tr><td><code>webhooks</code></td><td><code>workers/webhooks.py</code></td><td><code>dispatch_webhook</code>, <code>retry_failed_webhooks</code>, <code>retry_webhook_event</code></td></tr>
@@ -2099,6 +2262,7 @@ SOURCING ──► SOURCED
         <tr><td><code>update_node_performance</code></td><td>Every 4 hours</td><td>Compute rolling 7d/30d node stats from labeled outcomes</td></tr>
         <tr><td><code>discover_patterns</code></td><td>Daily 02:00 UTC</td><td>Aggregate patterns, compare strategies, auto-generate pending <code>AIProposal</code> records</td></tr>
         <tr><td><code>evaluate_ai_experiments</code></td><td>Daily 03:00 UTC</td><td>Compute per-arm outcomes; declare winner when ≥50 samples per arm + score diff ≥0.05</td></tr>
+        <tr><td><code>check_sla_breaches_fanout</code></td><td>Every 15 minutes</td><td>Fan out <code>check_sla_breaches</code> to every active environment; increments daily Redis counter</td></tr>
       </tbody>
     </table>
   </div>
@@ -2397,7 +2561,7 @@ if payload.status == OrderStatus.SHIPPED and order.connector_id:
 
 <!-- ══ MONITORING ══ -->
 <section id="monitoring">
-  <h2><span class="section-num">23</span> Monitoring &amp; Traceability</h2>
+  <h2><span class="section-num">23</span> Monitoring, Traceability &amp; SLA</h2>
   <p>The OMS has a built-in error monitoring console accessible at <strong>Admin → Monitoring</strong>. Every unhandled exception across all services — FastAPI routes, Celery workers, background tasks — is automatically captured, fingerprinted, and stored in MongoDB for analysis.</p>
 
   <h3>Error Capture Pipeline</h3>
@@ -2446,6 +2610,7 @@ capture_error() / capture_error_sync()   ← app/services/monitoring.py
         <tr><td><span class="method method-get">GET</span></td><td><code>/monitoring/metrics/top</code></td><td>Top N issues by occurrence count</td></tr>
         <tr><td><span class="method method-get">GET</span></td><td><code>/monitoring/metrics/sources</code></td><td>Error breakdown by source service</td></tr>
         <tr><td><span class="method method-post">POST</span></td><td><code>/monitoring/test-error</code></td><td>Inject a synthetic test error to verify the capture pipeline</td></tr>
+        <tr><td><span class="method method-get">GET</span></td><td><code>/monitoring/sla-summary</code></td><td>Today's SLA breach count for the current environment (reads Redis counter)</td></tr>
       </tbody>
     </table>
   </div>
@@ -2473,6 +2638,150 @@ capture_error() / capture_error_sync()   ← app/services/monitoring.py
   -H "Content-Type: application/json" \
   -d '{"message": "Smoke test", "source": "api", "level": "ERROR"}'</pre>
   <p>After calling this endpoint, navigate to <strong>Monitoring → Issues</strong> or <strong>Monitoring → Events</strong> in the UI to confirm the entry appears.</p>
+</section>
+
+<!-- ── SLA DETECTION ── -->
+<section id="sla-detection">
+  <h2><span class="section-num">24</span> SLA Breach Detection</h2>
+
+  <p>
+    The SLA detection system monitors in-flight orders against per-step SLA targets defined in their
+    assigned lifecycle. It runs as a Celery beat task every <strong>15 minutes</strong> and makes breach
+    counts available in real time via a Redis counter and a dedicated API endpoint.
+  </p>
+
+  <h3>How it works</h3>
+  <div class="pipeline">1. check_sla_breaches_fanout fires (beat, every 15 min)
+ │
+ └─► dispatches check_sla_breaches(environment_id) per active env
+       │
+       ├─► reads lifecycle_steps WHERE sla_hours IS NOT NULL
+       ├─► reads orders WHERE status IN (PENDING, CONFIRMED, SOURCED,
+       │         BACKORDERED, PICKING, PACKING) AND lifecycle_id IS NOT NULL
+       │
+       └─► for each order where (now - updated_at) > sla_hours:
+             ├─► emits order.sla_breach event → MongoDB order_events
+             └─► increments Redis counter sla_breaches:{env}:{YYYY-MM-DD}</div>
+
+  <h3>SLA summary endpoint</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td><code>/monitoring/sla-summary</code></td>
+          <td>Superadmin</td>
+          <td>Return today's SLA breach count for the current environment. Reads the daily Redis counter.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <pre data-lang="bash">curl http://localhost:8000/monitoring/sla-summary \
+  -H "Authorization: Bearer &lt;superadmin_token&gt;" \
+  -H "X-OMS-Environment: &lt;env_id&gt;"</pre>
+
+  <pre data-lang="json">{
+  "date": "2026-05-09",
+  "environment_id": "default",
+  "sla_breaches_today": 3
+}</pre>
+
+  <h3>Redis counter</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Key</th><th>Type</th><th>TTL</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>sla_breaches:{env}:{YYYY-MM-DD}</code></td>
+          <td>STRING (integer)</td>
+          <td>86400 s</td>
+          <td>Cumulative daily breach count per environment. Reset by key expiry at midnight.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Audit event schema</h3>
+  <pre data-lang="json">{
+  "order_id": "uuid",
+  "event_type": "order.sla_breach",
+  "timestamp": "2026-05-09T14:30:00Z",
+  "data": {
+    "status": "PICKING",
+    "sla_hours": 4.0,
+    "breach_hours": 5.7,
+    "lifecycle_id": "uuid"
+  }
+}</pre>
+
+  <p>
+    Breach events are queryable via <code>GET /orders/{order_id}/events</code> and visible in
+    the Order Detail audit trail in the frontend.
+  </p>
+
+  <h3>Configuring SLA targets</h3>
+  <p>
+    SLA targets are set per lifecycle step. When creating or updating a lifecycle, include
+    <code>sla_hours</code> on any step that should be monitored:
+  </p>
+  <pre data-lang="json">{
+  "status": "PICKING",
+  "label": "Picking",
+  "step_order": 3,
+  "sla_hours": 4.0,
+  "allowed_next_statuses": ["PACKING"]
+}</pre>
+  <p>Orders without a <code>lifecycle_id</code> are skipped by the SLA checker.</p>
+</section>
+
+<!-- ── WORKER RELIABILITY ── -->
+<section id="worker-reliability">
+  <h2><span class="section-num">25</span> Worker Reliability</h2>
+
+  <p>
+    Several reliability improvements were made to the Celery workers in this sprint to prevent
+    duplicate processing, protect against traffic spikes, and surface failures in the monitoring console.
+  </p>
+
+  <h3>Idempotency on <code>start_picking</code></h3>
+  <p>
+    Before transitioning any allocations to <code>PICKING</code>, the task acquires a Redis lock:
+  </p>
+  <pre data-lang="text">Key:  picking_lock:{order_id}
+TTL:  600 seconds (10 minutes)</pre>
+  <p>
+    If the lock is already held — for example because a task was retried after a transient
+    database error — the duplicate invocation exits immediately without modifying any state.
+    This prevents the same order from being double-picked.
+  </p>
+
+  <h3>Rate limiting on <code>source_order</code></h3>
+  <p>
+    The sourcing worker enforces a global rate limit of <strong>100 tasks per minute</strong> using
+    a Redis sliding-window counter. Tasks that arrive above the limit are re-queued with a short
+    backoff delay rather than dropped or rejected. This protects the sourcing engine during burst
+    traffic without losing any orders.
+  </p>
+
+  <h3>Dead-letter queue signal</h3>
+  <p>
+    When a Celery task exhausts its retry budget (<code>max_retries</code> exceeded), the worker
+    publishes a failure signal to the <code>oms_dlq</code> Redis key. A background listener picks
+    this up and writes an <code>error_issues</code> document to MongoDB via the standard monitoring
+    pipeline. The failure becomes visible in the <strong>Monitoring → Issues</strong> console
+    immediately, without requiring manual log inspection.
+  </p>
+
+  <h3>Session factory caching</h3>
+  <p>
+    <code>EnvironmentEngineRegistry</code> now caches an <code>async_sessionmaker</code> instance
+    per engine. Previously a new factory was created on every <code>get_db()</code> call, which
+    caused unnecessary object allocation on high-throughput routes. The cached factory is
+    invalidated automatically whenever the engine is replaced — for example after an environment
+    is reprovisioned — so tenant isolation is preserved.
+  </p>
 </section>
 
 <!-- ══ CONFIG ══ -->
@@ -2774,6 +3083,140 @@ docker compose up -d --build</pre>
         <tr><td><code>SKU-ACCESSORY-1</code></td><td>Accessory Pack 1</td><td>$9.99</td></tr>
       </tbody>
     </table>
+  </div>
+
+  <h3>B2B Customer Accounts (4)</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Account #</th><th>Company</th><th>Type</th><th>Tier</th><th>Terms</th><th>Credit Limit</th><th>Approval Threshold</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>B2B-001</code></td>
+          <td><strong>Acme Distribution Inc.</strong> — Edison, NJ</td>
+          <td><span class="badge badge-green">ACTIVE</span></td>
+          <td>GOLD</td>
+          <td>NET30</td>
+          <td>$100,000</td>
+          <td>$50,000 (above → approval required)</td>
+        </tr>
+        <tr>
+          <td><code>B2B-002</code></td>
+          <td><strong>TechResell Partners LLC</strong> — San Francisco, CA — tax-exempt <code>CA-88776655</code></td>
+          <td><span class="badge badge-green">ACTIVE</span></td>
+          <td>SILVER</td>
+          <td>NET60</td>
+          <td>$50,000</td>
+          <td>$25,000 (above → approval required)</td>
+        </tr>
+        <tr>
+          <td><code>B2B-003</code></td>
+          <td><strong>MegaCorp Supply Co.</strong> — Chicago, IL — tax-exempt <code>IL-12345678</code></td>
+          <td><span class="badge badge-green">ACTIVE</span></td>
+          <td>PLATINUM</td>
+          <td>NET90</td>
+          <td>$500,000</td>
+          <td>None — all orders auto-proceed</td>
+        </tr>
+        <tr>
+          <td><code>B2B-004</code></td>
+          <td><strong>StartupGadgets Inc.</strong> — Palo Alto, CA</td>
+          <td><span class="badge badge-yellow">PROSPECT</span></td>
+          <td>STANDARD</td>
+          <td>PREPAID</td>
+          <td>$0 (no credit)</td>
+          <td>$500</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>B2B Sourcing Rules (3 active)</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Priority</th><th>Name</th><th>Strategy</th><th>Conditions</th><th>Nodes</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>12</strong></td>
+          <td>B2B High-Value (&gt;$5K) — Nearest DC</td>
+          <td><span class="badge badge-green">DISTANCE_OPTIMAL</span></td>
+          <td><code>order_type = B2B</code> AND <code>total_amount &gt; 5000</code></td>
+          <td>DC only · max 1 node</td>
+        </tr>
+        <tr>
+          <td><strong>15</strong></td>
+          <td>B2B — Distribution Centers Only</td>
+          <td><span class="badge badge-yellow">COST_OPTIMAL</span></td>
+          <td><code>order_type = B2B</code></td>
+          <td>DC only · max 2 nodes</td>
+        </tr>
+        <tr>
+          <td><strong>18</strong></td>
+          <td>NET60/NET90 — Least Cost Split</td>
+          <td><span class="badge badge-orange">LEAST_COST_SPLIT</span></td>
+          <td><code>payment_terms IN [NET60, NET90]</code></td>
+          <td>Any · max 3 nodes</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>B2B Sample Orders (4 scenarios)</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Order #</th><th>Account</th><th>Total</th><th>PO</th><th>Approval</th><th>Status</th><th>Scenario</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>…-B2B001</code></td>
+          <td>Acme (B2B-001)</td>
+          <td>$2,499.50</td>
+          <td>PO-2026-00001</td>
+          <td><span class="badge badge-green">NOT_REQUIRED</span></td>
+          <td>PENDING</td>
+          <td>Below $50K threshold — auto-routes to DC immediately</td>
+        </tr>
+        <tr>
+          <td><code>…-B2B002</code></td>
+          <td>TechResell (B2B-002)</td>
+          <td>$30,999.75</td>
+          <td>PO-2026-00042</td>
+          <td><span class="badge badge-yellow">PENDING</span></td>
+          <td>PENDING</td>
+          <td>Above $25K threshold — held for manager approval before sourcing</td>
+        </tr>
+        <tr>
+          <td><code>…-B2B003</code></td>
+          <td>MegaCorp (B2B-003)</td>
+          <td>$8,499.60</td>
+          <td>PO-2026-00100</td>
+          <td><span class="badge badge-green">NOT_REQUIRED</span></td>
+          <td>SOURCED</td>
+          <td>Strategic account, no approval gate — already sourced via LEAST_COST_SPLIT</td>
+        </tr>
+        <tr>
+          <td><code>…-B2B004</code></td>
+          <td>StartupGadgets (B2B-004)</td>
+          <td>$937.03</td>
+          <td>PO-SG-0001</td>
+          <td><span class="badge badge-green">NOT_REQUIRED</span></td>
+          <td>PENDING</td>
+          <td>PREPAID prospect, payment captured upfront — alternate approval path demo</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <h3>Brands (2)</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Slug</th><th>Name</th><th>Mode</th><th>Linked data</th></tr></thead>
+      <tbody>
+        <tr><td><code>retailco</code></td><td>RetailCo</td><td>B2C_ONLY</td><td>5 sourcing rules, 3 orders</td></tr>
+        <tr><td><code>wholesaleco</code></td><td>WholesaleCo</td><td>B2B_ONLY</td><td>3 B2B sourcing rules, 4 B2B orders, 4 customer accounts</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <p><strong>Run B2B seed:</strong> <code>docker compose exec api python scripts/seed.py</code> — the seeder runs <code>seed_postgres()</code>, <code>seed_b2b()</code>, <code>seed_brands()</code>, then <code>seed_mongodb()</code> in sequence. B2B events for all four orders are written to the <code>order_events</code> MongoDB collection automatically.</p>
   </div>
 </section>
 
@@ -3508,6 +3951,1218 @@ def source_pending_orders(environment_id: str = ""):
   </div>
 </section>
 
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- ══ B2B COMMERCE ══════════════════════════════════════════════════════════ -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+
+<section id="b2b-overview">
+  <h2><span class="section-num">B2B</span> B2B Commerce Overview</h2>
+  <p>
+    KubeRiva OMS supports a full <strong>B2B (Business-to-Business) commerce workflow</strong> alongside the standard retail
+    (B2C) order management flow. B2B enables wholesale, EDI, and direct-account selling with dedicated account
+    management, PO-based ordering, net-terms credit, per-account pricing tiers, and an approval gate before fulfillment.
+    All B2B features live in the same data plane as retail orders — no separate stack required.
+  </p>
+
+  <div class="card-grid">
+    <div class="stat-card">
+      <div class="stat-label">Account Types</div>
+      <div class="stat-value">4</div>
+      <div class="stat-desc">PROSPECT · ACTIVE · INACTIVE · ON_HOLD</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Pricing Tiers</div>
+      <div class="stat-value">5</div>
+      <div class="stat-desc">STANDARD · BRONZE · SILVER · GOLD · PLATINUM</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Payment Terms</div>
+      <div class="stat-value">6</div>
+      <div class="stat-desc">PREPAID · NET15 · NET30 · NET60 · NET90 · COD</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Approval Gate</div>
+      <div class="stat-value">Auto</div>
+      <div class="stat-desc">Rules-based: threshold or account-level override</div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <p><strong>Feature flag:</strong> B2B is enabled per-environment via the <code>b2b_enabled</code> flag on the <code>environments</code> table. The sidebar nav item <em>Customer Accounts</em> only appears when B2B is enabled and the user is a superadmin. The <code>X-OMS-B2B-Enabled</code> header is returned by the environment context on every API response.</p>
+  </div>
+
+  <h3>How B2B differs from retail</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Dimension</th><th>Retail (B2C)</th><th>B2B</th></tr></thead>
+      <tbody>
+        <tr><td>Order channel</td><td><code>WEB</code>, <code>MOBILE</code>, <code>POS</code>, <code>API</code>, <code>MARKETPLACE</code></td><td><code>B2B</code>, <code>EDI</code>, <code>WHOLESALE</code></td></tr>
+        <tr><td><code>order_type</code> field</td><td><code>RETAIL</code></td><td><code>B2B</code></td></tr>
+        <tr><td>Customer identity</td><td>Email address</td><td><code>customer_account_id</code> (FK → <code>customer_accounts</code>)</td></tr>
+        <tr><td>Reference number</td><td>Internal order number</td><td>PO number (<code>po_number</code>) — buyer-supplied</td></tr>
+        <tr><td>Payment</td><td>Captured at checkout (prepaid)</td><td>Net terms: NET30, NET60, etc.; invoiced later</td></tr>
+        <tr><td>Approval gate</td><td>None — sources immediately</td><td>Optional: PENDING → APPROVED before sourcing</td></tr>
+        <tr><td>Billing address</td><td>Shipping address used</td><td>Separate <code>billing_*</code> fields on the order</td></tr>
+        <tr><td>Credit</td><td>N/A</td><td><code>credit_limit</code> and <code>credit_used</code> tracked on account</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ── B2B CUSTOMER ACCOUNTS ── -->
+<section id="b2b-accounts">
+  <h2><span class="section-num">B2B·1</span> Customer Accounts</h2>
+  <p>
+    A <strong>Customer Account</strong> represents a business buyer entity. Each account holds credit, billing,
+    contact, and pricing configuration that applies to all orders placed under it.
+  </p>
+
+  <h3>Account schema</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>UUID</td><td>Primary key</td></tr>
+        <tr><td><code>account_number</code></td><td>VARCHAR(50) UNIQUE</td><td>Human-readable ID, e.g. <code>B2B-00042</code></td></tr>
+        <tr><td><code>company_name</code></td><td>VARCHAR(300)</td><td>Legal entity name</td></tr>
+        <tr><td><code>trading_name</code></td><td>VARCHAR(300)</td><td>DBA / brand name (optional)</td></tr>
+        <tr><td><code>account_type</code></td><td>ENUM</td><td><code>PROSPECT</code> · <code>ACTIVE</code> · <code>INACTIVE</code> · <code>ON_HOLD</code></td></tr>
+        <tr><td><code>contact_name</code> / <code>email</code> / <code>phone</code></td><td>VARCHAR</td><td>Primary procurement contact</td></tr>
+        <tr><td><code>credit_limit</code></td><td>NUMERIC(14,2)</td><td>Maximum open credit in USD</td></tr>
+        <tr><td><code>credit_used</code></td><td>NUMERIC(14,2)</td><td>Current outstanding credit (auto-updated)</td></tr>
+        <tr><td><code>payment_terms</code></td><td>ENUM</td><td>Default terms applied to new orders: <code>PREPAID</code>, <code>NET15</code> … <code>NET90</code>, <code>COD</code></td></tr>
+        <tr><td><code>pricing_tier</code></td><td>ENUM</td><td><code>STANDARD</code> · <code>BRONZE</code> · <code>SILVER</code> · <code>GOLD</code> · <code>PLATINUM</code></td></tr>
+        <tr><td><code>tax_exempt</code></td><td>BOOLEAN</td><td>Whether orders skip sales tax</td></tr>
+        <tr><td><code>tax_exempt_id</code></td><td>VARCHAR(100)</td><td>State exemption certificate number</td></tr>
+        <tr><td><code>billing_name</code> / <code>address1</code> / <code>city</code> / <code>state</code> / <code>country</code></td><td>VARCHAR</td><td>Default billing address (copied to new orders)</td></tr>
+        <tr><td><code>approval_threshold</code></td><td>NUMERIC(14,2)</td><td>Orders above this amount require approval (<code>NULL</code> = never require)</td></tr>
+        <tr><td><code>notes</code></td><td>TEXT</td><td>Internal notes (not visible to buyer)</td></tr>
+        <tr><td><code>is_active</code></td><td>BOOLEAN</td><td>Inactive accounts cannot place new orders</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Credit management</h3>
+  <p>
+    Credit is tracked at the account level. When a B2B order is placed with net terms, <code>credit_used</code> is
+    incremented by the order total. When an order is paid, cancelled, or refunded, credit is released.
+    Orders are rejected at the API layer if they would push <code>credit_used</code> above <code>credit_limit</code>.
+  </p>
+  <div class="callout warn">
+    <p><strong>Manual adjustments:</strong> Use <code>POST /b2b/accounts/{id}/credit-adjustment</code> to record
+    payments received or manual corrections. Supply <code>amount</code> (positive = release credit, negative = consume)
+    and <code>reason</code> (e.g. <code>"Invoice #INV-2026-004 paid"</code>).</p>
+  </div>
+
+  <h3>Account lifecycle</h3>
+  <div class="pipeline">PROSPECT  →  ACTIVE  ←→  INACTIVE
+                    ↓                ↓
+                ON_HOLD  ←───────────┘
+           (orders blocked until reactivated)
+                    ↓
+             deactivated (is_active = false)</div>
+</section>
+
+<!-- ── B2B ORDER LIFECYCLE ── -->
+<section id="b2b-orders">
+  <h2><span class="section-num">B2B·2</span> B2B Order Lifecycle</h2>
+
+  <p>
+    A B2B order follows the same status progression as a retail order, but has an additional <strong>approval gate</strong>
+    that can pause it before sourcing. The gate is controlled by the <code>approval_status</code> field.
+  </p>
+
+  <h3>Full lifecycle diagram</h3>
+  <div class="pipeline">                     B2B ORDER CREATED
+                           │
+                    ┌──────▼──────┐
+                    │   PENDING   │  approval_status = NOT_REQUIRED
+                    └──────┬──────┘         or APPROVED
+                           │
+              ┌────────────┼────────────────────────┐
+              │ approval   │                        │ approval
+              │ NOT_REQUIRED                        │ REQUIRED
+              ▼            ▼                        ▼
+         ─────────    ─────────                ─────────────
+         CONFIRMED    CONFIRMED                  PENDING
+                                             (approval_status
+                                              = PENDING)
+                                                   │
+                                        ┌──────────┴──────────┐
+                                        │ superadmin          │ reject
+                                        │ approves            ▼
+                                        ▼               CANCELLED
+                                   CONFIRMED            (approval_status
+                                                         = REJECTED)
+                           │
+                    ┌──────▼──────┐
+                    │   SOURCING  │  Sourcing engine runs (B2B rules evaluated)
+                    └──────┬──────┘
+                           │
+                    ┌──────▼──────┐
+                    │   SOURCED   │  Allocations created
+                    └──────┬──────┘
+                           │
+              ┌────────────┼─────────────┐
+              ▼            ▼             ▼
+           PICKING      PACKING    READY_TO_SHIP
+              └────────────┼─────────────┘
+                           │
+                    ┌──────▼──────┐
+                    │   SHIPPED   │  Tracking number recorded
+                    └──────┬──────┘
+                           │
+                   OUT_FOR_DELIVERY
+                           │
+                    ┌──────▼──────┐
+                    │  DELIVERED  │  credit_used decremented if invoice paid
+                    └─────────────┘</div>
+
+  <h3>B2B-specific fields on the Order model</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>order_type</code></td><td><code>RETAIL</code> | <code>B2B</code></td><td>Discriminator — controls B2B workflow activation</td></tr>
+        <tr><td><code>customer_account_id</code></td><td>UUID (FK)</td><td>References <code>customer_accounts.id</code></td></tr>
+        <tr><td><code>po_number</code></td><td>VARCHAR(100)</td><td>Buyer's purchase order reference</td></tr>
+        <tr><td><code>payment_terms</code></td><td>ENUM</td><td>Copied from account defaults; overridable per order</td></tr>
+        <tr><td><code>approval_status</code></td><td>ENUM</td><td><code>NOT_REQUIRED</code> · <code>PENDING</code> · <code>APPROVED</code> · <code>REJECTED</code></td></tr>
+        <tr><td><code>approved_by_id</code></td><td>UUID (FK → users)</td><td>User who approved the order</td></tr>
+        <tr><td><code>approved_at</code></td><td>TIMESTAMPTZ</td><td>Approval timestamp</td></tr>
+        <tr><td><code>payment_due_date</code></td><td>TIMESTAMPTZ</td><td>Calculated from <code>payment_terms</code> and ship date</td></tr>
+        <tr><td><code>billing_name</code> / <code>address1</code> / <code>address2</code> / <code>city</code> / <code>state</code> / <code>postal_code</code> / <code>country</code></td><td>VARCHAR</td><td>Billing address (separate from shipping)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Creating a B2B order</h3>
+  <pre data-lang="json">{
+  "customer_name": "Acme Corp",
+  "customer_email": "procurement@acme.com",
+  "channel": "B2B",
+  "order_type": "B2B",
+  "customer_account_id": "uuid-of-acme-account",
+  "po_number": "PO-2026-00091",
+  "payment_terms": "NET30",
+  "fulfillment_type": "SHIP_TO_HOME",
+  "shipping_address1": "100 Main St",
+  "shipping_city": "San Francisco",
+  "shipping_state": "CA",
+  "shipping_postal_code": "94105",
+  "shipping_country": "US",
+  "line_items": [
+    { "sku": "SKU-001", "product_name": "Widget Pro", "quantity": 50, "unit_price": 12.99 }
+  ]
+}</pre>
+
+  <div class="callout">
+    <p><strong>Approval auto-detection:</strong> When <code>order_type = "B2B"</code> and the linked account has an
+    <code>approval_threshold</code> set, the API automatically sets <code>approval_status = "PENDING"</code> if
+    <code>total_amount &gt; approval_threshold</code>. Orders under the threshold (or with no threshold set)
+    start as <code>NOT_REQUIRED</code> and source immediately.</p>
+  </div>
+</section>
+
+<!-- ── APPROVAL WORKFLOW ── -->
+<section id="b2b-approval">
+  <h2><span class="section-num">B2B·3</span> Approval Workflow</h2>
+
+  <p>
+    The approval gate prevents high-value or high-risk B2B orders from entering fulfillment without human review.
+    Orders in <code>PENDING</code> approval status are excluded from the auto-sourcing Celery beat task
+    (<code>source_pending_orders_fanout</code>) until explicitly approved.
+  </p>
+
+  <h3>Approval gate logic</h3>
+  <div class="pipeline">ORDER CREATED (B2B)
+       │
+       ├─ account.approval_threshold IS NULL
+       │     OR total_amount ≤ approval_threshold
+       │         → approval_status = NOT_REQUIRED
+       │         → order.status = CONFIRMED
+       │         → sourcing runs immediately on next beat tick
+       │
+       └─ total_amount > approval_threshold
+             → approval_status = PENDING
+             → order.status = PENDING
+             → order EXCLUDED from sourcing until approved</div>
+
+  <h3>Approving an order</h3>
+  <p>Superadmins see an <strong>Approve</strong> button on the Order Detail page when <code>approval_status = PENDING</code>.
+  The button calls:</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td><code>/orders/{id}/approve</code></td>
+          <td>Superadmin</td>
+          <td>Sets <code>approval_status = APPROVED</code>, <code>approved_by_id</code>, <code>approved_at</code>, advances order to <code>CONFIRMED</code>, queues for sourcing</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    On approval, a <code>order.approved</code> audit event is written to MongoDB with the approver's user ID.
+    The order then enters the normal sourcing queue and proceeds identically to a retail order.
+  </p>
+
+  <h3>Rejection</h3>
+  <p>
+    Rejected orders (<code>approval_status = REJECTED</code>) are transitioned to <code>CANCELLED</code> status.
+    A <code>order.cancelled</code> event is written. No sourcing or fulfillment tasks are dispatched.
+    Credit is not consumed for rejected orders.
+  </p>
+
+  <h3>Order Detail — B2B banner</h3>
+  <p>
+    The Order Detail page shows a coloured B2B banner beneath the status stepper for any <code>order_type = B2B</code> order:
+  </p>
+  <div class="card" style="border-color: #92400e; background: rgba(251,191,36,0.04);">
+    <div style="display:flex; gap:12px; align-items:flex-start;">
+      <div style="flex:1;">
+        <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:13px; color:#e2e8f0; margin-bottom:8px;">
+          <span><strong style="color:#94a3b8;">PO Number</strong><br>PO-2026-00091</span>
+          <span><strong style="color:#94a3b8;">Payment Terms</strong><br>NET30</span>
+          <span><strong style="color:#94a3b8;">Due Date</strong><br>Jun 20, 2026</span>
+        </div>
+        <span class="badge badge-yellow">⏳ PENDING APPROVAL</span>
+      </div>
+      <button style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;">✓ Approve Order</button>
+    </div>
+  </div>
+  <ul style="margin-top:12px;">
+    <li><strong>Amber banner</strong> — approval_status = PENDING (Approve button visible to superadmins)</li>
+    <li><strong>Red banner</strong> — approval_status = REJECTED</li>
+    <li><strong>Blue banner</strong> — APPROVED or NOT_REQUIRED (informational only, no action button)</li>
+  </ul>
+</section>
+
+<!-- ── B2B SOURCING RULES ── -->
+<section id="b2b-sourcing">
+  <h2><span class="section-num">B2B·4</span> B2B Sourcing Rules</h2>
+
+  <p>
+    The sourcing rules engine supports <strong>B2B-aware condition fields</strong>. You can create rules that apply
+    exclusively to B2B orders, specific payment terms, or approval states — giving you separate fulfillment strategies
+    for wholesale vs. retail without duplicating node configuration.
+  </p>
+
+  <h3>Supported B2B condition fields</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Field</th><th>Operators</th><th>Example values</th><th>Use case</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>order_type</code></td>
+          <td>EQUALS, NOT_EQUALS</td>
+          <td><code>B2B</code>, <code>RETAIL</code></td>
+          <td>Route all B2B orders to a dedicated distribution center</td>
+        </tr>
+        <tr>
+          <td><code>payment_terms</code></td>
+          <td>EQUALS, IN, NOT_IN</td>
+          <td><code>NET30</code>, <code>NET60</code>, <code>PREPAID</code></td>
+          <td>Use a cost-optimal strategy for net-terms orders (lower urgency)</td>
+        </tr>
+        <tr>
+          <td><code>approval_status</code></td>
+          <td>EQUALS, NOT_EQUALS</td>
+          <td><code>APPROVED</code>, <code>NOT_REQUIRED</code></td>
+          <td>Guard — only approved orders proceed; useful for manual QA checks</td>
+        </tr>
+        <tr>
+          <td><code>po_number</code></td>
+          <td>CONTAINS, STARTS_WITH</td>
+          <td><code>PO-WHOLESALE-</code></td>
+          <td>Route orders with specific PO prefixes to a dedicated node</td>
+        </tr>
+        <tr>
+          <td><code>channel</code></td>
+          <td>IN, NOT_IN</td>
+          <td><code>EDI</code>, <code>WHOLESALE</code></td>
+          <td>Different fulfillment strategy for EDI vs. portal-submitted B2B</td>
+        </tr>
+        <tr>
+          <td><code>total_amount</code></td>
+          <td>GREATER_THAN, LESS_THAN_OR_EQUAL</td>
+          <td><code>5000</code>, <code>50000</code></td>
+          <td>Priority handling for high-value B2B orders</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <p><strong>Field group in the UI:</strong> B2B condition fields are grouped under <em>B2B</em> in the field dropdown
+    of the Sourcing Rules condition builder, with a blue hint label reminding you they only apply to B2B orders.
+    Standard order fields (channel, fulfillment_type, total_amount, etc.) continue to work as before.</p>
+  </div>
+
+  <h3>Example rule configurations</h3>
+
+  <h4>1 — Route all B2B to a dedicated distribution center</h4>
+  <pre data-lang="json">{
+  "name": "B2B → Distribution Center",
+  "priority": 5,
+  "strategy": "COST_OPTIMAL",
+  "conditions": [
+    { "field": "order_type", "operator": "EQUALS", "value": "B2B" }
+  ],
+  "allowed_node_types": ["DISTRIBUTION_CENTER"],
+  "cost_weight": 0.7,
+  "distance_weight": 0.3
+}</pre>
+
+  <h4>2 — High-value B2B with expedited sourcing</h4>
+  <pre data-lang="json">{
+  "name": "B2B High-Value → Nearest Warehouse",
+  "priority": 3,
+  "strategy": "DISTANCE_OPTIMAL",
+  "conditions": [
+    { "field": "order_type",   "operator": "EQUALS",       "value": "B2B" },
+    { "field": "total_amount", "operator": "GREATER_THAN",  "value": "10000" }
+  ],
+  "allowed_node_types": ["DISTRIBUTION_CENTER", "WAREHOUSE"],
+  "max_split_nodes": 1
+}</pre>
+
+  <h4>3 — NET60 accounts → cost-minimising split</h4>
+  <pre data-lang="json">{
+  "name": "NET60 B2B → Least Cost Split",
+  "priority": 12,
+  "strategy": "LEAST_COST_SPLIT",
+  "conditions": [
+    { "field": "payment_terms", "operator": "EQUALS", "value": "NET60" }
+  ],
+  "max_split_nodes": 3,
+  "cost_weight": 0.9,
+  "distance_weight": 0.1
+}</pre>
+
+  <h4>4 — EDI channel → AI-adaptive (pattern-driven)</h4>
+  <pre data-lang="json">{
+  "name": "EDI Orders → AI Adaptive",
+  "priority": 8,
+  "strategy": "AI_ADAPTIVE",
+  "conditions": [
+    { "field": "channel", "operator": "EQUALS", "value": "EDI" }
+  ]
+}</pre>
+
+  <h3>Rule evaluation order with B2B conditions</h3>
+  <div class="pipeline">For each sourcing request:
+
+  1. Load all active rules ordered by priority ASC
+  2. For each rule:
+       evaluate ALL conditions (AND logic)
+       B2B conditions resolve:
+         order_type      → order.order_type       (default "RETAIL")
+         payment_terms   → order.payment_terms    (default "PREPAID")
+         approval_status → order.approval_status  (default "NOT_REQUIRED")
+         po_number       → order.po_number        (default "")
+  3. First matching rule wins → apply its strategy
+  4. No rule matches → fallback to DISTANCE_OPTIMAL
+
+  NOTE: PENDING approval_status orders are EXCLUDED from the sourcing
+        beat task entirely — they never reach rule evaluation.</div>
+
+  <div class="callout warn">
+    <p><strong>Avoid catch-all rules before B2B rules:</strong> A rule with no conditions (catch-all) at priority 1
+    will match every order — including B2B — before your B2B-specific rules get evaluated. Always assign
+    catch-all fallback rules the highest priority number (lowest urgency).</p>
+  </div>
+</section>
+
+<!-- ── B2B API REFERENCE ── -->
+<section id="b2b-api">
+  <h2><span class="section-num">B2B·5</span> B2B API Reference</h2>
+
+  <h3>Customer Accounts (<code>/b2b/accounts</code>)</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td><code>/b2b/accounts</code></td>
+          <td>Superadmin</td>
+          <td>List accounts. Query: <code>account_type</code>, <code>is_active</code>, <code>search</code> (name/number), <code>page</code>, <code>page_size</code></td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td><code>/b2b/accounts</code></td>
+          <td>Superadmin</td>
+          <td>Create a new customer account</td>
+        </tr>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td><code>/b2b/accounts/{id}</code></td>
+          <td>Superadmin</td>
+          <td>Fetch a single account with full detail</td>
+        </tr>
+        <tr>
+          <td><span class="method method-patch">PATCH</span></td>
+          <td><code>/b2b/accounts/{id}</code></td>
+          <td>Superadmin</td>
+          <td>Update account fields (partial update)</td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td><code>/b2b/accounts/{id}/credit-adjustment</code></td>
+          <td>Superadmin</td>
+          <td>Manually adjust <code>credit_used</code>. Body: <code>{ "amount": -500.00, "reason": "Invoice paid" }</code></td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td><code>/b2b/accounts/{id}/deactivate</code></td>
+          <td>Superadmin</td>
+          <td>Set <code>is_active = false</code>. New orders for this account will be rejected.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>B2B Order endpoints (<code>/orders</code>)</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td><code>/orders/</code></td>
+          <td>Any authenticated</td>
+          <td>Create order — include <code>order_type: "B2B"</code>, <code>customer_account_id</code>, and <code>po_number</code> for B2B</td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td><code>/orders/{id}/approve</code></td>
+          <td>Superadmin</td>
+          <td>Approve a PENDING B2B order. Sets <code>approval_status = APPROVED</code>, advances to CONFIRMED, queues sourcing</td>
+        </tr>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td><code>/orders/?order_type=B2B</code></td>
+          <td>Any authenticated</td>
+          <td>Filter order list to B2B orders only</td>
+        </tr>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td><code>/orders/?approval_status=PENDING</code></td>
+          <td>Any authenticated</td>
+          <td>List orders awaiting approval</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Customer Accounts — full create payload</h3>
+  <pre data-lang="json">{
+  "company_name": "Acme Distribution Inc.",
+  "trading_name": "Acme",
+  "account_type": "ACTIVE",
+  "contact_name": "Jane Doe",
+  "contact_email": "jane@acme.com",
+  "contact_phone": "+1-555-0100",
+  "credit_limit": 250000.00,
+  "payment_terms": "NET30",
+  "pricing_tier": "GOLD",
+  "tax_exempt": true,
+  "tax_exempt_id": "CA-98765432",
+  "billing_name": "Acme Distribution Inc.",
+  "billing_address1": "500 Commerce Blvd",
+  "billing_city": "Los Angeles",
+  "billing_state": "CA",
+  "billing_country": "US",
+  "approval_threshold": 25000.00,
+  "notes": "Key wholesale partner — priority fulfillment expected"
+}</pre>
+
+  <h3>Sourcing Rules — B2B condition payload</h3>
+  <pre data-lang="json">{
+  "name": "B2B Enterprise → DC Priority",
+  "priority": 5,
+  "is_active": true,
+  "strategy": "COST_OPTIMAL",
+  "conditions": [
+    { "field": "order_type",   "operator": "EQUALS",      "value": "B2B" },
+    { "field": "total_amount", "operator": "GREATER_THAN", "value": "1000" }
+  ],
+  "allowed_node_types": ["DISTRIBUTION_CENTER"],
+  "cost_weight": 0.8,
+  "distance_weight": 0.2
+}</pre>
+
+  <h3>Common response fields on B2B orders</h3>
+  <pre data-lang="json">{
+  "id": "...",
+  "order_number": "ORD-20260507-B2BXYZ",
+  "order_type": "B2B",
+  "customer_account_id": "uuid-of-account",
+  "po_number": "PO-2026-00091",
+  "payment_terms": "NET30",
+  "approval_status": "APPROVED",
+  "approved_by_id": "uuid-of-approver",
+  "approved_at": "2026-05-07T14:22:00Z",
+  "payment_due_date": "2026-06-07T14:22:00Z",
+  "billing_name": "Acme Distribution Inc.",
+  "billing_address1": "500 Commerce Blvd",
+  "billing_city": "Los Angeles",
+  "billing_state": "CA",
+  "billing_postal_code": "90021",
+  "billing_country": "US",
+  "status": "SOURCED",
+  "total_amount": 6495.00
+}</pre>
+
+  <div class="callout success">
+    <p><strong>Indexing:</strong> B2B fields are indexed for fast filtering:
+    <code>ix_orders_customer_account</code> (customer_account_id),
+    <code>ix_orders_po_number</code> (po_number),
+    <code>ix_orders_approval_status</code> (approval_status).
+    All three indexes are created by the <code>init_db()</code> migration and propagated to all active tenant
+    environment databases on every API startup via <code>_run_env_migrations()</code>.</p>
+  </div>
+</section>
+
+<!-- ── INVOICES ── -->
+<section id="api-invoices">
+  <h2><span class="section-num">B2B·6</span> Invoices <code style="font-size:14px">/invoices</code></h2>
+
+  <p>
+    The Invoices API manages accounts-receivable documents for B2B orders. Invoices are created either
+    automatically (from a delivered B2B order) or manually by an admin. Marking an invoice as
+    <code>PAID</code> automatically releases the corresponding <code>credit_used</code> on the customer account,
+    restoring purchasing capacity.
+  </p>
+
+  <div class="callout">
+    <p><strong>Auth:</strong> All invoice endpoints require a valid JWT and superadmin role
+    (<code>Authorization: Bearer &lt;token&gt;</code>).</p>
+  </div>
+
+  <h3>Endpoints</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td><code>/invoices/</code></td>
+          <td>Superadmin</td>
+          <td>List all invoices. Query: <code>customer_account_id</code>, <code>status</code>, <code>page</code>, <code>page_size</code> (max 100).</td>
+        </tr>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td><code>/invoices/account/{account_id}</code></td>
+          <td>Superadmin</td>
+          <td>List invoices for a specific customer account. Query: <code>status</code>, <code>page</code>, <code>page_size</code>. Sorted by <code>issued_date DESC</code>.</td>
+        </tr>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td><code>/invoices/{invoice_id}</code></td>
+          <td>Superadmin</td>
+          <td>Retrieve a single invoice with linked customer account and order detail.</td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td><code>/invoices/</code></td>
+          <td>Superadmin</td>
+          <td>Manually create an invoice. Requires <code>customer_account_id</code>; optionally link to an existing order via <code>order_id</code>. Idempotent on <code>order_id</code>.</td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td><code>/invoices/from-order/{order_id}</code></td>
+          <td>Superadmin</td>
+          <td>Auto-create an invoice from a delivered B2B order. Idempotent — returns the existing invoice if already created for this order. Requires <code>order_type = B2B</code> and a linked <code>customer_account_id</code>.</td>
+        </tr>
+        <tr>
+          <td><span class="method method-patch">PATCH</span></td>
+          <td><code>/invoices/{invoice_id}/status</code></td>
+          <td>Superadmin</td>
+          <td>Update invoice status. Setting <code>PAID</code> sets <code>paid_date</code> to today and decrements <code>credit_used</code> on the customer account. Optional <code>notes</code> field.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Invoice status lifecycle</h3>
+  <div class="pipeline">DRAFT  →  SENT  →  PAID
+                 └──────────────→  OVERDUE
+                 └──────────────→  VOID</div>
+
+  <h3>Due date calculation</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Payment Terms</th><th>Due Date</th></tr></thead>
+      <tbody>
+        <tr><td><code>NET30</code></td><td>issued_date + 30 days</td></tr>
+        <tr><td><code>NET60</code></td><td>issued_date + 60 days</td></tr>
+        <tr><td><code>NET90</code></td><td>issued_date + 90 days</td></tr>
+        <tr><td><code>PREPAID</code> / <code>COD</code></td><td>Same as issued_date (0 days)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Auto-create from delivered order</h3>
+  <pre data-lang="bash">curl -X POST http://localhost:8000/invoices/from-order/&lt;order_id&gt; \
+  -H "Authorization: Bearer &lt;token&gt;"</pre>
+
+  <p>Returns HTTP 201 with the new invoice, or HTTP 200 if an invoice already exists for this order (idempotent).</p>
+
+  <h3>Manual create payload</h3>
+  <pre data-lang="json">{
+  "customer_account_id": "uuid-of-account",
+  "order_id": "uuid-of-order"
+}</pre>
+
+  <p>When <code>order_id</code> is provided, amounts are copied from the order. When omitted, the invoice is created with zero amounts for manual line-item entry.</p>
+
+  <h3>Update status to PAID</h3>
+  <pre data-lang="bash">curl -X PATCH http://localhost:8000/invoices/&lt;invoice_id&gt;/status \
+  -H "Authorization: Bearer &lt;token&gt;" \
+  -H "Content-Type: application/json" \
+  -d '{"status": "PAID"}'</pre>
+
+  <div class="callout success">
+    <p><strong>Credit release:</strong> When status transitions to <code>PAID</code>, the API atomically decrements
+    <code>account.credit_used</code> by <code>invoice.total_amount</code> and logs a
+    <code>customer_account.invoice_paid</code> event to the MongoDB audit trail. Credit is never reduced below 0.</p>
+  </div>
+
+  <h3>Invoice response schema</h3>
+  <pre data-lang="json">{
+  "id": "a1b2c3d4-...",
+  "invoice_number": "INV-202605-A3F7C2",
+  "customer_account_id": "uuid-of-account",
+  "order_id": "uuid-of-order",
+  "status": "SENT",
+  "subtotal": 2499.50,
+  "tax_amount": 0.00,
+  "total_amount": 2499.50,
+  "currency": "USD",
+  "issued_date": "2026-05-08",
+  "due_date": "2026-06-07",
+  "payment_terms": "NET30",
+  "paid_date": null,
+  "notes": null,
+  "customer_account": {
+    "id": "uuid-of-account",
+    "account_number": "B2B-001",
+    "company_name": "Acme Distribution Inc."
+  },
+  "order": {
+    "id": "uuid-of-order",
+    "order_number": "ORD-20260508-B2B001",
+    "status": "DELIVERED"
+  }
+}</pre>
+
+  <h3>List response schema</h3>
+  <pre data-lang="json">{
+  "items": [ /* array of InvoiceResponse */ ],
+  "total": 42,
+  "page": 1,
+  "page_size": 20,
+  "total_pages": 3
+}</pre>
+</section>
+
+<!-- ── API KEYS ── -->
+<section id="api-keys">
+  <h2><span class="section-num">API·1</span> API Keys <code style="font-size:14px">/api-keys</code></h2>
+
+  <p>
+    API keys provide machine-to-machine access to the OMS API without a user login session.
+    They are the right choice for CI/CD pipelines, external scripts, and server-side integrations
+    that cannot perform an interactive OAuth login.
+  </p>
+
+  <div class="callout">
+    <p><strong>Auth:</strong> Managing keys (create / list / revoke) requires superadmin JWT authentication.
+    Using a key to call other endpoints requires only the <code>X-API-Key</code> header.</p>
+  </div>
+
+  <h3>Security model</h3>
+  <ul>
+    <li>Keys are stored as <strong>SHA-256 hashes only</strong> — the database never holds the raw value.</li>
+    <li>The raw key (format <code>kr_&lt;43 url-safe chars&gt;</code>) is returned <strong>exactly once</strong> in the creation response and cannot be retrieved again.</li>
+    <li>The 12-character <code>prefix</code> (e.g. <code>kr_AbCdEfGh</code>) is stored in plaintext for identification in list responses.</li>
+    <li>Revoked keys are retained in the database for audit purposes — they are never hard-deleted.</li>
+    <li>Optional <code>expires_at</code> timestamp; expired keys are rejected automatically.</li>
+  </ul>
+
+  <h3>Endpoints</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td><code>/api-keys</code></td>
+          <td>Superadmin JWT</td>
+          <td>Create a key — raw value returned once only. HTTP 201.</td>
+        </tr>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td><code>/api-keys</code></td>
+          <td>Superadmin JWT</td>
+          <td>List all keys. Raw key and hash never returned.</td>
+        </tr>
+        <tr>
+          <td><span class="method method-delete">DELETE</span></td>
+          <td><code>/api-keys/{key_id}</code></td>
+          <td>Superadmin JWT</td>
+          <td>Revoke a key (<code>is_active=False</code>). Idempotent. HTTP 204.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Using a key</h3>
+  <pre data-lang="bash">curl http://localhost:8000/orders/ \
+  -H "X-API-Key: kr_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789ABC"</pre>
+
+  <h3>Create request</h3>
+  <pre data-lang="json">{
+  "name": "CI/CD Pipeline",
+  "scopes": ["orders:read", "inventory:read"],
+  "expires_at": "2027-01-01T00:00:00Z"
+}</pre>
+
+  <h3>Create response (key shown once)</h3>
+  <pre data-lang="json">{
+  "id": "uuid",
+  "name": "CI/CD Pipeline",
+  "key": "kr_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789ABC",
+  "prefix": "kr_AbCdEfGh",
+  "scopes": ["orders:read", "inventory:read"],
+  "expires_at": "2027-01-01T00:00:00Z",
+  "created_at": "2026-05-09T10:00:00Z"
+}</pre>
+
+  <div class="callout" style="border-color:var(--yellow)">
+    <p><strong>Copy the key now.</strong> The <code>key</code> field is omitted from all subsequent
+    responses — including <code>GET /api-keys</code>. Store it in a secrets manager immediately.</p>
+  </div>
+
+  <h3>Available scopes</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Scope</th><th>Permits</th></tr></thead>
+      <tbody>
+        <tr><td><code>orders:read</code></td><td><code>GET /orders/*</code></td></tr>
+        <tr><td><code>orders:write</code></td><td><code>POST /orders/</code>, <code>PATCH /orders/*</code></td></tr>
+        <tr><td><code>inventory:read</code></td><td><code>GET /inventory/*</code></td></tr>
+        <tr><td><code>inventory:write</code></td><td><code>POST /inventory/*</code>, <code>PATCH /inventory/*</code></td></tr>
+        <tr><td><code>sourcing_rules:read</code></td><td><code>GET /sourcing-rules/*</code></td></tr>
+        <tr><td><code>admin:read</code></td><td><code>GET /analytics/*</code>, <code>GET /monitoring/*</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ── BRAND ACCESS ── -->
+<section id="api-brand-access">
+  <h2><span class="section-num">API·2</span> Brand Access <code style="font-size:14px">/brand-access</code></h2>
+
+  <p>
+    Brand access assignments restrict a user's view to a specific brand within an environment.
+    A user with a brand role sees only orders and inventory belonging to their assigned brand —
+    as if they logged into a single-brand instance of the OMS.
+  </p>
+
+  <div class="callout">
+    <p><strong>Auth:</strong> All endpoints require superadmin JWT authentication.
+    Superadmin users always bypass brand filtering regardless of any assignment.</p>
+  </div>
+
+  <h3>Role hierarchy</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Role</th><th>Read orders &amp; inventory</th><th>Fulfillment actions</th><th>Configuration</th></tr></thead>
+      <tbody>
+        <tr><td><code>VIEWER</code></td><td>Brand's data only</td><td>—</td><td>—</td></tr>
+        <tr><td><code>OPERATOR</code></td><td>Brand's data only</td><td>Status updates, stock adjustments</td><td>—</td></tr>
+        <tr><td><code>ADMIN</code></td><td>Brand's data only</td><td>All operations</td><td>Brand-scoped config</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Endpoints</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td><code>/brand-access/</code></td>
+          <td>List assignments. Filter by <code>?user_id=</code>, <code>?brand_id=</code>, <code>?environment_id=</code> (ANDed).</td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td><code>/brand-access/</code></td>
+          <td>Assign a user to a brand. Returns 409 if the user/brand/environment triplet already exists.</td>
+        </tr>
+        <tr>
+          <td><span class="method method-delete">DELETE</span></td>
+          <td><code>/brand-access/{assignment_id}</code></td>
+          <td>Remove a brand role assignment. HTTP 204. Returns 404 if not found.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Assign example</h3>
+  <pre data-lang="bash">curl -X POST http://localhost:8000/brand-access/ \
+  -H "Authorization: Bearer &lt;superadmin_token&gt;" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "&lt;user-uuid&gt;",
+    "brand_id": "&lt;brand-uuid&gt;",
+    "environment_id": "&lt;env-uuid&gt;",
+    "role": "OPERATOR"
+  }'</pre>
+
+  <p>
+    To change a user's role, delete the existing assignment first, then create a new one with the
+    desired role. The role value is case-insensitive on input and stored in uppercase.
+  </p>
+</section>
+
+<!-- ── DISTRIBUTION GROUPS ── -->
+<section id="api-distribution-groups">
+  <h2><span class="section-num">API·3</span> Distribution Groups <code style="font-size:14px">/distribution-groups</code></h2>
+
+  <p>
+    A Distribution Group is a named, ordered pool of fulfillment nodes. Instead of filtering by
+    node type in every sourcing rule, you define a group once — for example "East Coast DCs" — and
+    reference it across multiple rules. The sourcing engine selects nodes from the group in
+    <strong>effective priority order</strong>.
+  </p>
+
+  <h3>Priority formula</h3>
+  <pre data-lang="text">effective_priority = target_priority × 100 + member_priority</pre>
+  <p>
+    <code>target_priority</code> comes from the sourcing rule that references the group.
+    <code>member_priority</code> is the intra-group ordering (lower = preferred).
+    This ensures rule-level ordering is always respected first, with the group's internal
+    ordering as a tiebreaker within the same rule.
+  </p>
+
+  <h3>Endpoints</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td><code>/distribution-groups/</code></td>
+          <td>Authenticated</td>
+          <td>List groups. Filter by <code>is_active</code>, <code>brand_id</code>. Paginated (<code>page</code>, <code>page_size</code> max 200).</td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td><code>/distribution-groups/</code></td>
+          <td>Superadmin</td>
+          <td>Create a group with optional initial members. HTTP 201.</td>
+        </tr>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td><code>/distribution-groups/{dg_id}</code></td>
+          <td>Authenticated</td>
+          <td>Get group details with sorted member list.</td>
+        </tr>
+        <tr>
+          <td><span class="method method-patch">PATCH</span></td>
+          <td><code>/distribution-groups/{dg_id}</code></td>
+          <td>Superadmin</td>
+          <td>Update name, description, active state, or brand assignment.</td>
+        </tr>
+        <tr>
+          <td><span class="method method-delete">DELETE</span></td>
+          <td><code>/distribution-groups/{dg_id}</code></td>
+          <td>Superadmin</td>
+          <td>Delete a group. Cascades to member rows. HTTP 204.</td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td><code>/distribution-groups/{dg_id}/members</code></td>
+          <td>Superadmin</td>
+          <td>Add a node to the group. Returns 409 if node is already a member.</td>
+        </tr>
+        <tr>
+          <td><span class="method method-patch">PATCH</span></td>
+          <td><code>/distribution-groups/{dg_id}/members/{node_id}</code></td>
+          <td>Superadmin</td>
+          <td>Update the priority of an existing member.</td>
+        </tr>
+        <tr>
+          <td><span class="method method-delete">DELETE</span></td>
+          <td><code>/distribution-groups/{dg_id}/members/{node_id}</code></td>
+          <td>Superadmin</td>
+          <td>Remove a node from the group. Returns the updated group.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Create example</h3>
+  <pre data-lang="json">{
+  "name": "East Coast DCs",
+  "description": "Distribution centers serving the eastern seaboard",
+  "is_active": true,
+  "brand_id": null,
+  "members": [
+    { "node_id": "&lt;dc-east-uuid&gt;", "priority": 1 },
+    { "node_id": "&lt;dc-mid-uuid&gt;",  "priority": 2 }
+  ]
+}</pre>
+
+  <h3>Response schema</h3>
+  <pre data-lang="json">{
+  "id": "uuid",
+  "name": "East Coast DCs",
+  "description": "Distribution centers serving the eastern seaboard",
+  "is_active": true,
+  "brand_id": null,
+  "created_at": "2026-05-09T10:00:00Z",
+  "updated_at": "2026-05-09T10:00:00Z",
+  "members": [
+    {
+      "id": "uuid",
+      "group_id": "uuid",
+      "node_id": "uuid",
+      "priority": 1,
+      "node_name": "DC-EAST",
+      "node_code": "DC-EAST",
+      "node_type": "DISTRIBUTION_CENTER"
+    }
+  ]
+}</pre>
+</section>
+
+<!-- ── LIFECYCLES ── -->
+<section id="api-lifecycles">
+  <h2><span class="section-num">API·4</span> Lifecycles <code style="font-size:14px">/lifecycles</code></h2>
+
+  <p>
+    A Lifecycle defines the status sequence, allowed transitions, and SLA targets for an order
+    pipeline. Lifecycles are scoped by <code>pipeline_type</code>, <code>order_type</code>,
+    <code>brand_id</code>, and <code>fulfillment_types</code>. The most specific matching
+    lifecycle is selected automatically when an order is created.
+  </p>
+
+  <h3>Pipeline types</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th><code>pipeline_type</code></th><th>Applies to</th><th>Typical status sequence</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>ORDER</code></td>
+          <td>Forward fulfillment (default)</td>
+          <td><code>PENDING → CONFIRMED → SOURCED → PICKING → PACKING → READY_TO_SHIP → SHIPPED → DELIVERED</code></td>
+        </tr>
+        <tr>
+          <td><code>RETURN</code></td>
+          <td>Reverse logistics</td>
+          <td><code>RETURN_REQUESTED → RETURN_APPROVED → IN_TRANSIT_BACK → RECEIVED → INSPECTED → REFUNDED</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Specificity resolution</h3>
+  <p>
+    When the system resolves a lifecycle for an order, it scores each active lifecycle candidate
+    by counting how many of the four scoping dimensions are explicitly matched (pipeline_type,
+    order_type, brand_id, fulfillment_type). The highest-scoring lifecycle wins. Ties are broken
+    by <code>is_default</code> flag, then creation date.
+  </p>
+
+  <h3>Endpoints</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td><code>/lifecycles/</code></td>
+          <td>List lifecycles. Filter by <code>pipeline_type</code>, <code>order_type</code>, <code>brand_id</code>, <code>fulfillment_type</code>, <code>active_only</code> (default true).</td>
+        </tr>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td><code>/lifecycles/resolve</code></td>
+          <td>Return the best-matching lifecycle for a context. Required: <code>fulfillment_type</code>. Optional: <code>channel</code>, <code>pipeline_type</code>, <code>order_type</code>, <code>brand_id</code>.</td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td><code>/lifecycles/</code></td>
+          <td>Create a lifecycle with steps. HTTP 201.</td>
+        </tr>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td><code>/lifecycles/{lifecycle_id}</code></td>
+          <td>Get lifecycle with all steps.</td>
+        </tr>
+        <tr>
+          <td><span class="method method-patch">PATCH</span></td>
+          <td><code>/lifecycles/{lifecycle_id}</code></td>
+          <td>Update lifecycle metadata or replace the full step list.</td>
+        </tr>
+        <tr>
+          <td><span class="method method-delete">DELETE</span></td>
+          <td><code>/lifecycles/{lifecycle_id}</code></td>
+          <td>Delete a lifecycle. HTTP 204.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Resolve example</h3>
+  <pre data-lang="bash">GET /lifecycles/resolve
+  ?fulfillment_type=SHIP_TO_HOME
+  &amp;pipeline_type=ORDER
+  &amp;order_type=B2B
+  &amp;brand_id=&lt;uuid&gt;</pre>
+
+  <p>Returns:</p>
+  <pre data-lang="json">{
+  "lifecycle": { /* LifecycleResponse */ },
+  "matched_on": ["pipeline_type", "order_type", "brand_id", "fulfillment_types"]
+}</pre>
+
+  <h3>SLA configuration</h3>
+  <p>
+    Each step in a lifecycle can carry an <code>sla_hours</code> value. When set, the
+    <code>check_sla_breaches</code> Celery task (runs every 15 minutes) emits an
+    <code>order.sla_breach</code> audit event if the order has been in that status longer than the
+    configured hours. See <a href="#sla-detection">SLA Breach Detection</a> for the full pipeline.
+  </p>
+
+  <h3>Custom field definitions</h3>
+  <p>
+    Custom field definitions let you add application-level metadata fields to orders, nodes, or
+    products without a DDL migration. They are managed via the AI Architect router:
+  </p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td><code>/architect/custom-attributes</code></td>
+          <td>List definitions. Filter by <code>entity_type</code>.</td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td><code>/architect/custom-attributes</code></td>
+          <td>Create a definition. HTTP 201. Superadmin only.</td>
+        </tr>
+        <tr>
+          <td><span class="method method-delete">DELETE</span></td>
+          <td><code>/architect/custom-attributes/{field_id}</code></td>
+          <td>Delete a definition. HTTP 204. Superadmin only.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    <strong>Entity types:</strong> <code>order</code>, <code>node</code>, <code>product</code><br>
+    <strong>Data types:</strong> <code>text</code>, <code>number</code>, <code>boolean</code>, <code>date</code>
+  </p>
+  <p>
+    Values are stored in the existing <code>metadata_</code> JSONB columns on each entity table.
+    No schema changes are required.
+  </p>
+</section>
+
+<!-- ── BRAND ENTITY ── -->
+<section id="brand-entity">
+  <h2><span class="section-num">Brand</span> Brand Entity &amp; Multi-Brand Architecture</h2>
+
+  <p>
+    The <strong>Brand Entity</strong> is a logical business identity scoped within an Environment.
+    A single KubeRiva OMS environment can host multiple brands — for example a B2C retail brand
+    and a B2B wholesale brand — that share the same fulfillment nodes, inventory pool, and
+    Celery workers but maintain completely isolated:
+  </p>
+  <ul>
+    <li>Sourcing rules (brand-specific routing logic)</li>
+    <li>Customer accounts (B2B accounts are brand-scoped)</li>
+    <li>Platform connectors (a Shopify store stamps its brand on inbound orders)</li>
+    <li>AI learning patterns (cluster key prefixed with brand slug)</li>
+  </ul>
+
+  <h3>Architecture: brand-as-field</h3>
+  <p>
+    Brand assignment is a nullable UUID foreign key on four tables. <code>NULL brand_id</code> means
+    unbranded — all existing data remains valid with no migration. Brand filtering is opt-in at every
+    list endpoint via <code>?brand_id=&lt;uuid&gt;</code>.
+  </p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Table</th><th>FK column</th><th>Index</th><th>Unique constraint</th></tr></thead>
+      <tbody>
+        <tr><td><code>orders</code></td><td><code>brand_id</code></td><td><code>ix_orders_brand</code></td><td>—</td></tr>
+        <tr><td><code>sourcing_rules</code></td><td><code>brand_id</code></td><td><code>ix_sourcing_rules_brand</code></td><td>—</td></tr>
+        <tr><td><code>customer_accounts</code></td><td><code>brand_id</code></td><td><code>ix_customer_accounts_brand</code></td><td><code>(account_number, brand_id)</code></td></tr>
+        <tr><td><code>connectors</code></td><td><code>brand_id</code></td><td><code>ix_connectors_brand</code></td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Seeded brands</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Slug</th><th>Name</th><th>Mode</th><th>Seeded data</th></tr></thead>
+      <tbody>
+        <tr><td><code>retailco</code></td><td>RetailCo</td><td>B2C_ONLY</td><td>5 sourcing rules, 3 orders</td></tr>
+        <tr><td><code>wholesaleco</code></td><td>WholesaleCo</td><td>B2B_ONLY</td><td>3 B2B sourcing rules, 4 B2B orders, 4 customer accounts</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Organization-level tenant mode</h3>
+  <p>
+    The <code>organizations</code> table has a <code>tenant_mode</code> column (B2C_ONLY / B2B_ONLY / HYBRID).
+    This propagates to the frontend via <code>EnvironmentContext</code> as <code>tenantMode</code>,
+    <code>isB2BEnabled</code>, and <code>isB2CEnabled</code>, allowing the UI to hide or show
+    B2B features globally based on the organization's configuration.
+  </p>
+
+  <h3>Sourcing engine integration</h3>
+  <p>Two new condition fields are available in sourcing rules:</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Field</th><th>Type</th><th>Example value</th></tr></thead>
+      <tbody>
+        <tr><td><code>brand_id</code></td><td>UUID string</td><td><code>"a1b2c3d4-..."</code></td></tr>
+        <tr><td><code>brand_slug</code></td><td>String</td><td><code>"retailco"</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <pre data-lang="json">// Route all RetailCo orders to store-nearest strategy
+{
+  "name": "RetailCo → Store Nearest",
+  "brand_id": "a1b2c3d4-...",
+  "conditions": [
+    { "field": "brand_slug", "operator": "EQUALS", "value": "retailco" }
+  ],
+  "strategy": "STORE_NEAREST"
+}</pre>
+
+  <div class="callout">
+    <p><strong>Cluster key:</strong> The AI learning pipeline uses <code>brand_slug|channel|region|amount_bucket|fulfillment_type</code>
+    as the cluster key. Orders without a brand use <code>default</code> as the brand slug prefix, ensuring
+    backward compatibility with patterns recorded before the brand entity was introduced.</p>
+  </div>
+</section>
 
 </main>
 </div>

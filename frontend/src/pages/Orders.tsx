@@ -1,16 +1,18 @@
 import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Plus, RefreshCw, Filter, ChevronLeft, ChevronRight, Eye, Trash2, Search, X } from 'lucide-react'
-import { fetchOrders, createOrder, fetchProducts, fetchNodes, type OrderStatus, type OrderChannel, type FulfillmentType, type ProductSummary } from '../api/client'
+import { Plus, RefreshCw, Filter, ChevronLeft, ChevronRight, Eye, Trash2, Search, X, Clock } from 'lucide-react'
+import { fetchOrders, createOrder, fetchProducts, fetchNodes, getBrands, fetchCustomerAccounts, type OrderStatus, type OrderChannel, type FulfillmentType, type ProductSummary } from '../api/client'
 import { StatusBadge } from '../components/Badge'
 import Modal from '../components/Modal'
+import { useEnvironment } from '../contexts/EnvironmentContext'
+import api from '../api/client'
 
 const STATUSES: OrderStatus[] = [
   'PENDING','CONFIRMED','SOURCED','PICKING','PACKING',
   'READY_TO_SHIP','SHIPPED','DELIVERED','CANCELLED'
 ]
-const CHANNELS: OrderChannel[] = ['WEB','MOBILE','POS','API','MARKETPLACE']
+const CHANNELS: OrderChannel[] = ['WEB','MOBILE','POS','API','MARKETPLACE','B2B','EDI','WHOLESALE']
 const FULFILLMENT_TYPES: FulfillmentType[] = [
   'SHIP_TO_HOME','STORE_PICKUP','SHIP_FROM_STORE','CURBSIDE_PICKUP','SAME_DAY_DELIVERY'
 ]
@@ -105,8 +107,11 @@ function SkuSearchInput({
   )
 }
 
+const PAYMENT_TERMS = ['PREPAID','NET_15','NET_30','NET_60','NET_90','COD','UPON_RECEIPT'] as const
+
 interface NewOrderForm {
   channel: OrderChannel
+  order_type: 'RETAIL' | 'B2B'
   fulfillment_type: FulfillmentType
   customer_email: string
   customer_name: string
@@ -118,6 +123,10 @@ interface NewOrderForm {
   country: string
   latitude: string
   longitude: string
+  // B2B fields
+  customer_account_id: string
+  po_number: string
+  payment_terms: string
   line_items: LineItemForm[]
 }
 
@@ -125,6 +134,7 @@ const emptyLineItem = (): LineItemForm => ({ sku: '', product_name: '', quantity
 
 const defaultForm: NewOrderForm = {
   channel: 'WEB',
+  order_type: 'RETAIL',
   fulfillment_type: 'SHIP_TO_HOME',
   customer_email: '',
   customer_name: '',
@@ -136,20 +146,31 @@ const defaultForm: NewOrderForm = {
   country: 'US',
   latitude: '',
   longitude: '',
+  customer_account_id: '',
+  po_number: '',
+  payment_terms: 'PREPAID',
   line_items: [emptyLineItem()],
 }
 
+type OrderTab = 'all' | 'b2c' | 'b2b' | 'pending_approval'
+
 export default function Orders() {
   const qc = useQueryClient()
+  const { isB2BEnabled, isB2CEnabled } = useEnvironment()
+  const [activeTab, setActiveTab] = useState<OrderTab>('all')
   const [page, setPage] = useState(1)
   const [status, setStatus] = useState('')
   const [channel, setChannel] = useState('')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const searchTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const [brandId, setBrandId] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState<NewOrderForm>(defaultForm)
   const [error, setError] = useState('')
+  const [accountSearch, setAccountSearch] = useState('')
+  const [accountDropdownOpen, setAccountDropdownOpen] = useState(false)
+  const [selectedAccountLabel, setSelectedAccountLabel] = useState('')
 
   const handleSearch = (v: string) => {
     setSearch(v)
@@ -157,14 +178,23 @@ export default function Orders() {
     searchTimerRef.current = setTimeout(() => { setDebouncedSearch(v); setPage(1) }, 300)
   }
 
-  const params: Record<string, string | number> = { page, page_size: 20 }
+  const params: Record<string, string | number | undefined> = { page, page_size: 20 }
   if (status) params.status = status
   if (channel) params.channel = channel
   if (debouncedSearch) params.search = debouncedSearch
+  if (brandId) params.brand_id = brandId
+  if (activeTab === 'b2c') params.order_type = 'RETAIL'
+  if (activeTab === 'b2b') params.order_type = 'B2B'
+  if (activeTab === 'pending_approval') params.approval_status = 'PENDING'
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['orders', params],
     queryFn: () => fetchOrders(params),
+  })
+
+  const { data: brandsData } = useQuery({
+    queryKey: ['brands', 'active'],
+    queryFn: () => getBrands({ is_active: true }),
   })
 
   const isPickupType = form.fulfillment_type === 'STORE_PICKUP' || form.fulfillment_type === 'CURBSIDE_PICKUP'
@@ -172,6 +202,12 @@ export default function Orders() {
     queryKey: ['nodes', 'pickup'],
     queryFn: () => fetchNodes({ page_size: 200 }),
     enabled: showCreate && isPickupType,
+  })
+
+  const { data: accountSearchResults } = useQuery({
+    queryKey: ['account-search', accountSearch],
+    queryFn: () => fetchCustomerAccounts({ search: accountSearch, page_size: 8 }),
+    enabled: accountSearch.length >= 2,
   })
 
   const createMutation = useMutation({
@@ -182,6 +218,9 @@ export default function Orders() {
       setShowCreate(false)
       setForm(defaultForm)
       setError('')
+      setSelectedAccountLabel('')
+      setAccountSearch('')
+      setAccountDropdownOpen(false)
     },
     onError: (err: unknown) => {
       const e = err as { response?: { data?: { detail?: string } } }
@@ -204,10 +243,15 @@ export default function Orders() {
 
     const payload: Record<string, unknown> = {
       channel: form.channel,
+      order_type: form.order_type,
       fulfillment_type: form.fulfillment_type,
       customer_email: form.customer_email,
       customer_name: form.customer_name,
+      payment_terms: form.order_type === 'B2B' ? form.payment_terms : 'PREPAID',
+      ...((form as any).brand_id ? { brand_id: (form as any).brand_id } : {}),
       ...(form.pickup_node_id ? { pickup_node_id: form.pickup_node_id } : {}),
+      ...(form.order_type === 'B2B' && form.customer_account_id ? { customer_account_id: form.customer_account_id } : {}),
+      ...(form.order_type === 'B2B' && form.po_number ? { po_number: form.po_number } : {}),
       line_items: form.line_items.map(item => ({
         sku: item.sku,
         product_name: item.product_name,
@@ -281,6 +325,29 @@ export default function Orders() {
         </div>
       </div>
 
+      {/* B2B/B2C tab strip — only shown when B2B is enabled */}
+      {isB2BEnabled && (
+        <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit">
+          {([
+            { key: 'all', label: 'All Orders' },
+            isB2CEnabled && { key: 'b2c', label: 'B2C' },
+            { key: 'b2b', label: 'B2B' },
+            { key: 'pending_approval', label: 'Pending Approval' },
+          ] as const).filter(Boolean).map((tab: any) => (
+            <button
+              key={tab.key}
+              onClick={() => { setActiveTab(tab.key); setPage(1) }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
+                activeTab === tab.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {tab.key === 'pending_approval' && <Clock className="w-3 h-3" />}
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Filters */}
       <div className="card p-4 flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-48">
@@ -309,8 +376,14 @@ export default function Orders() {
           <option value="">All Channels</option>
           {CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
-        {(status || channel || search) && (
-          <button className="text-xs text-blue-600 hover:text-blue-800" onClick={() => { setStatus(''); setChannel(''); handleSearch(''); setDebouncedSearch(''); setPage(1) }}>
+        {brandsData && brandsData.length > 0 && (
+          <select className="select max-w-40" value={brandId} onChange={e => { setBrandId(e.target.value); setPage(1) }}>
+            <option value="">All Brands</option>
+            {brandsData.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+        )}
+        {(status || channel || search || brandId) && (
+          <button className="text-xs text-blue-600 hover:text-blue-800" onClick={() => { setStatus(''); setChannel(''); setBrandId(''); handleSearch(''); setDebouncedSearch(''); setPage(1) }}>
             Clear all
           </button>
         )}
@@ -322,7 +395,7 @@ export default function Orders() {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                {['Order #', 'Customer', 'Channel', 'Fulfillment', 'Status', 'Total', 'Created', ''].map(h => (
+                {['Order #', 'Customer', 'Channel', 'Fulfillment', 'Status', ...(isB2BEnabled ? ['Approval'] : []), 'Total', 'Created', ...(brandsData && brandsData.length > 0 ? ['Brand'] : []), ''].map(h => (
                   <th key={h} className="table-header">{h}</th>
                 ))}
               </tr>
@@ -331,42 +404,63 @@ export default function Orders() {
               {isLoading
                 ? Array.from({ length: 8 }).map((_, i) => (
                     <tr key={i} className="animate-pulse">
-                      {Array.from({ length: 8 }).map((_, j) => (
+                      {Array.from({ length: brandsData && brandsData.length > 0 ? 9 : 8 }).map((_, j) => (
                         <td key={j} className="table-cell">
                           <div className="h-4 bg-gray-200 rounded w-24" />
                         </td>
                       ))}
                     </tr>
                   ))
-                : data?.items.map(order => (
-                    <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="table-cell">
-                        <Link to={`/orders/${order.id}`} className="font-mono text-xs font-semibold text-blue-600 hover:text-blue-800">
-                          {order.order_number}
-                        </Link>
-                      </td>
-                      <td className="table-cell">
-                        <div className="font-medium text-gray-900">{order.customer_name || '—'}</div>
-                        <div className="text-xs text-gray-400">{order.customer_email}</div>
-                      </td>
-                      <td className="table-cell"><StatusBadge value={order.channel} /></td>
-                      <td className="table-cell">
-                        <span className="text-xs text-gray-600">{order.fulfillment_type.replace(/_/g, ' ')}</span>
-                      </td>
-                      <td className="table-cell"><StatusBadge value={order.status} /></td>
-                      <td className="table-cell font-semibold text-gray-900">${order.total_amount}</td>
-                      <td className="table-cell text-gray-500 text-xs">{order.created_at.slice(0, 16).replace('T', ' ')}</td>
-                      <td className="table-cell">
-                        <Link to={`/orders/${order.id}`} className="p-1.5 rounded-lg hover:bg-gray-100 inline-flex text-gray-400 hover:text-gray-600">
-                          <Eye className="w-4 h-4" />
-                        </Link>
-                      </td>
-                    </tr>
-                  ))
+                : data?.items.map(order => {
+                    const orderBrand = brandsData?.find(b => b.id === (order as any).brand_id)
+                    return (
+                      <tr key={order.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="table-cell">
+                          <Link to={`/orders/${order.id}`} className="font-mono text-xs font-semibold text-blue-600 hover:text-blue-800">
+                            {order.order_number}
+                          </Link>
+                        </td>
+                        <td className="table-cell">
+                          <div className="font-medium text-gray-900">{order.customer_name || '—'}</div>
+                          <div className="text-xs text-gray-400">{order.customer_email}</div>
+                        </td>
+                        <td className="table-cell"><StatusBadge value={order.channel} /></td>
+                        <td className="table-cell">
+                          <span className="text-xs text-gray-600">{order.fulfillment_type.replace(/_/g, ' ')}</span>
+                        </td>
+                        <td className="table-cell"><StatusBadge value={order.status} /></td>
+                        {isB2BEnabled && (
+                          <td className="table-cell">
+                            {(order as any).approval_status && (order as any).approval_status !== 'NOT_REQUIRED' && (
+                              <StatusBadge value={(order as any).approval_status} />
+                            )}
+                          </td>
+                        )}
+                        <td className="table-cell font-semibold text-gray-900">${order.total_amount}</td>
+                        <td className="table-cell text-gray-500 text-xs">{order.created_at.slice(0, 16).replace('T', ' ')}</td>
+                        {brandsData && brandsData.length > 0 && (
+                          <td className="table-cell">
+                            {orderBrand ? (
+                              <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                                {orderBrand.slug}
+                              </span>
+                            ) : (
+                              <span className="text-gray-300 text-xs">—</span>
+                            )}
+                          </td>
+                        )}
+                        <td className="table-cell">
+                          <Link to={`/orders/${order.id}`} className="p-1.5 rounded-lg hover:bg-gray-100 inline-flex text-gray-400 hover:text-gray-600">
+                            <Eye className="w-4 h-4" />
+                          </Link>
+                        </td>
+                      </tr>
+                    )
+                  })
               }
               {!isLoading && !data?.items.length && (
                 <tr>
-                  <td colSpan={8} className="text-center py-12 text-gray-400 text-sm">
+                  <td colSpan={isB2BEnabled ? (brandsData && brandsData.length > 0 ? 10 : 9) : (brandsData && brandsData.length > 0 ? 9 : 8)} className="text-center py-12 text-gray-400 text-sm">
                     No orders found. Create your first order!
                   </td>
                 </tr>
@@ -402,7 +496,7 @@ export default function Orders() {
       </div>
 
       {/* Create Order Modal */}
-      <Modal open={showCreate} onClose={() => { setShowCreate(false); setError(''); setForm(defaultForm) }} title="Create New Order" size="lg">
+      <Modal open={showCreate} onClose={() => { setShowCreate(false); setError(''); setForm(defaultForm); setSelectedAccountLabel(''); setAccountSearch(''); setAccountDropdownOpen(false) }} title="Create New Order" size="lg">
         <div className="space-y-4">
           {error && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}
 
@@ -452,6 +546,122 @@ export default function Orders() {
                       {n.name} ({n.code}) — {n.city}, {n.state}
                     </option>
                   ))}
+              </select>
+            </div>
+          )}
+
+          {/* Order type — only when B2B is enabled */}
+          {isB2BEnabled && isB2CEnabled && (
+            <div>
+              <label className="label">Order Type *</label>
+              <div className="flex gap-2">
+                {(['RETAIL', 'B2B'] as const).map(t => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, order_type: t }))}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                      form.order_type === t
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
+                    }`}
+                  >
+                    {t === 'RETAIL' ? 'B2C / Retail' : 'B2B / Wholesale'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* B2B fields */}
+          {isB2BEnabled && form.order_type === 'B2B' && (
+            <div className="p-3 bg-purple-50 rounded-lg border border-purple-100 space-y-3">
+              <p className="text-xs font-semibold text-purple-700 uppercase tracking-wider">B2B Details</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">PO Number</label>
+                  <input
+                    className="input font-mono"
+                    value={form.po_number}
+                    onChange={set('po_number')}
+                    placeholder="PO-2024-001"
+                  />
+                </div>
+                <div>
+                  <label className="label">Payment Terms</label>
+                  <select className="select" value={form.payment_terms} onChange={set('payment_terms')}>
+                    {PAYMENT_TERMS.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="relative">
+                <label className="label">Customer Account <span className="text-gray-400 font-normal">(optional)</span></label>
+                <input
+                  className="input w-full"
+                  placeholder="Type company name to search..."
+                  value={selectedAccountLabel}
+                  onChange={e => {
+                    setAccountSearch(e.target.value)
+                    setSelectedAccountLabel(e.target.value)
+                    setAccountDropdownOpen(true)
+                    if (!e.target.value) setForm(prev => ({ ...prev, customer_account_id: '' }))
+                  }}
+                  onFocus={() => accountSearch.length >= 2 && setAccountDropdownOpen(true)}
+                  onBlur={() => setTimeout(() => setAccountDropdownOpen(false), 150)}
+                />
+                {accountDropdownOpen && (accountSearchResults?.items?.length ?? 0) > 0 && (
+                  <div className="absolute z-10 left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded shadow-lg max-h-48 overflow-y-auto">
+                    {accountSearchResults!.items.map(acc => (
+                      <button
+                        key={acc.id}
+                        type="button"
+                        className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm flex justify-between items-center"
+                        onMouseDown={e => e.preventDefault()}
+                        onClick={() => {
+                          setForm(prev => ({ ...prev, customer_account_id: acc.id }))
+                          setSelectedAccountLabel(`${acc.company_name} (${acc.account_number})`)
+                          setAccountDropdownOpen(false)
+                          setAccountSearch('')
+                        }}
+                      >
+                        <span className="font-medium text-gray-900">{acc.company_name}</span>
+                        <span className="text-xs text-gray-400 font-mono">{acc.account_number}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {form.customer_account_id && (
+                  <div className="mt-1 text-xs text-gray-400 font-mono">
+                    ID: {form.customer_account_id}
+                    <button
+                      type="button"
+                      className="ml-2 text-red-400 hover:text-red-600"
+                      onClick={() => {
+                        setForm(prev => ({ ...prev, customer_account_id: '' }))
+                        setSelectedAccountLabel('')
+                      }}
+                    >
+                      clear
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Brand — optional, shown only when brands exist */}
+          {brandsData && brandsData.length > 0 && (
+            <div>
+              <label className="label">Brand <span className="text-gray-400 font-normal">(optional)</span></label>
+              <select
+                className="select"
+                value={(form as any).brand_id ?? ''}
+                onChange={e => setForm(f => ({ ...f, brand_id: e.target.value || undefined } as any))}
+              >
+                <option value="">No brand / unassigned</option>
+                {brandsData.map(b => (
+                  <option key={b.id} value={b.id}>{b.name} ({b.slug})</option>
+                ))}
               </select>
             </div>
           )}
@@ -597,7 +807,7 @@ export default function Orders() {
           </div>
 
           <div className="flex justify-end gap-2 pt-2 border-t">
-            <button className="btn-secondary" onClick={() => { setShowCreate(false); setForm(defaultForm) }}>Cancel</button>
+            <button className="btn-secondary" onClick={() => { setShowCreate(false); setForm(defaultForm); setSelectedAccountLabel(''); setAccountSearch(''); setAccountDropdownOpen(false) }}>Cancel</button>
             <button
               className="btn-primary"
               onClick={handleCreate}

@@ -1,6 +1,7 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import model_validator
 from functools import lru_cache
+from typing import Optional
 
 
 class Settings(BaseSettings):
@@ -106,15 +107,6 @@ class Settings(BaseSettings):
     SPACES_ENDPOINT: str = ""            # e.g. "https://nyc3.digitaloceanspaces.com"
 
     # ---------------------------------------------------------------------------
-    # Shopify App (App Store OAuth)
-    # ---------------------------------------------------------------------------
-    SHOPIFY_API_KEY: str = ""             # From Shopify Partners dashboard
-    SHOPIFY_API_SECRET: str = ""          # From Shopify Partners dashboard
-    SHOPIFY_APP_HOST: str = ""            # Public hostname of this app, e.g. "https://oms.yourcompany.com"
-    SHOPIFY_API_VERSION: str = "2024-07"  # Shopify API version for new installs
-    SHOPIFY_SCOPES: str = "read_orders,write_orders,read_fulfillments,write_fulfillments,read_products,write_inventory,read_inventory"
-
-    # ---------------------------------------------------------------------------
     # Computed properties
     # ---------------------------------------------------------------------------
 
@@ -137,12 +129,6 @@ class Settings(BaseSettings):
                     localhost_origins,
                 )
             origins = [o for o in origins if "localhost" not in o and "127.0.0.1" not in o]
-        # Allow Shopify Admin to make cross-origin requests when App Bridge
-        # embedded mode is enabled. The frontend runs inside admin.shopify.com
-        # and calls the OMS API with an Authorization bearer token (not cookies).
-        if self.SHOPIFY_API_KEY:
-            if "https://admin.shopify.com" not in origins:
-                origins.append("https://admin.shopify.com")
         return origins
 
     @property
@@ -178,17 +164,6 @@ class Settings(BaseSettings):
             raise ValueError(
                 f"Production deployment detected but insecure defaults still set: {', '.join(bad)}. "
                 "Set these to strong random values before running in production."
-            )
-        # If Shopify App Store integration is enabled, the API secret must be set.
-        if self.SHOPIFY_API_KEY and not self.SHOPIFY_API_SECRET:
-            raise ValueError(
-                "SHOPIFY_API_KEY is set but SHOPIFY_API_SECRET is empty. "
-                "Both must be configured together for Shopify App Store integration."
-            )
-        if self.SHOPIFY_API_KEY and not self.SHOPIFY_APP_HOST:
-            raise ValueError(
-                "SHOPIFY_APP_HOST must be set when SHOPIFY_API_KEY is configured. "
-                "Set it to the public HTTPS URL of this app, e.g. https://oms.yourcompany.com"
             )
         if self.PLAN_TIER not in ("STARTER", "GROWTH", "PRO", "ENTERPRISE"):
             raise ValueError(f"Invalid PLAN_TIER: {self.PLAN_TIER}")

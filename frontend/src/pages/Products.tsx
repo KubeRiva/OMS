@@ -287,6 +287,12 @@ export default function Products() {
         </div>
       </div>
 
+      {/* Brand-neutral callout */}
+      <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-xs text-blue-700 flex items-start gap-2">
+        <span className="flex-shrink-0 mt-0.5 font-bold">i</span>
+        <p>Product catalog is shared across all brands. Brand-specific order routing is configured in Sourcing Rules.</p>
+      </div>
+
       {/* Search */}
       <div className="card p-3 flex items-center gap-3">
         <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />

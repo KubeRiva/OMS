@@ -3,7 +3,6 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import { EnvironmentProvider } from './contexts/EnvironmentContext'
-import { ShopifyAppBridgeProvider } from './providers/ShopifyAppBridgeProvider'
 
 const Login        = lazy(() => import('./pages/Login'))
 const Dashboard    = lazy(() => import('./pages/Dashboard'))
@@ -23,17 +22,14 @@ const Connectors   = lazy(() => import('./pages/Connectors'))
 const Monitoring   = lazy(() => import('./pages/Monitoring'))
 const Testing      = lazy(() => import('./pages/Testing'))
 const Architect    = lazy(() => import('./pages/Architect'))
-const Platform          = lazy(() => import('./pages/Platform'))
-const Environments      = lazy(() => import('./pages/Environments'))
-const ShopifyInstall    = lazy(() => import('./pages/ShopifyInstall'))
-const ShopifyBillingConfirm = lazy(() => import('./pages/ShopifyBillingConfirm'))
-
-// Embedded (Shopify App Bridge) pages
-const EmbeddedLayout    = lazy(() => import('./components/EmbeddedLayout'))
-const EmbeddedDashboard = lazy(() => import('./pages/embedded/EmbeddedDashboard'))
-
-// The Shopify API key is injected at build time via Vite env
-const SHOPIFY_API_KEY = import.meta.env.VITE_SHOPIFY_API_KEY || ''
+const Platform     = lazy(() => import('./pages/Platform'))
+const Environments = lazy(() => import('./pages/Environments'))
+const Customers        = lazy(() => import('./pages/Customers'))
+const CustomerProfiles = lazy(() => import('./pages/CustomerProfiles'))
+const Brands           = lazy(() => import('./pages/Brands'))
+const Invoices     = lazy(() => import('./pages/Invoices'))
+const B2BAnalytics = lazy(() => import('./pages/B2BAnalytics'))
+const Returns      = lazy(() => import('./pages/Returns'))
 
 function PageLoader() {
   return (
@@ -46,25 +42,11 @@ function PageLoader() {
 export default function App() {
   return (
     <BrowserRouter>
-      <ShopifyAppBridgeProvider apiKey={SHOPIFY_API_KEY}>
       <EnvironmentProvider>
       <Suspense fallback={<PageLoader />}>
       <Routes>
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
-        <Route path="/shopify/install" element={<ShopifyInstall />} />
-        <Route path="/shopify/billing/confirm" element={<ShopifyBillingConfirm />} />
-
-        {/* Shopify embedded routes — auth via App Bridge session token, no OMS sidebar */}
-        <Route path="/embedded" element={<EmbeddedLayout />}>
-          <Route index element={<Navigate to="/embedded/dashboard" replace />} />
-          <Route path="dashboard" element={<EmbeddedDashboard />} />
-          <Route path="orders" element={<Orders />} />
-          <Route path="inventory" element={<Inventory />} />
-          <Route path="analytics" element={<Analytics />} />
-          <Route path="sourcing-rules" element={<SourcingRules />} />
-          <Route path="ai" element={<AIAssistant />} />
-        </Route>
 
         {/* All other routes require authentication */}
         <Route
@@ -79,6 +61,7 @@ export default function App() {
           <Route path="dashboard" element={<ProtectedRoute permission="dashboard:view"><Dashboard /></ProtectedRoute>} />
           <Route path="orders" element={<ProtectedRoute permission="orders:view"><Orders /></ProtectedRoute>} />
           <Route path="orders/:id" element={<ProtectedRoute permission="orders:view"><OrderDetail /></ProtectedRoute>} />
+          <Route path="returns" element={<ProtectedRoute permission="orders:view"><Returns /></ProtectedRoute>} />
           <Route path="inventory" element={<ProtectedRoute permission="inventory:view"><Inventory /></ProtectedRoute>} />
           <Route path="products" element={<ProtectedRoute permission="inventory:view"><Products /></ProtectedRoute>} />
           <Route path="analytics" element={<ProtectedRoute permission="analytics:view"><Analytics /></ProtectedRoute>} />
@@ -95,11 +78,15 @@ export default function App() {
           <Route path="architect" element={<ProtectedRoute requireSuperadmin><Architect /></ProtectedRoute>} />
           <Route path="environments" element={<ProtectedRoute><Environments /></ProtectedRoute>} />
           <Route path="platform" element={<ProtectedRoute requirePlatformOwner><Platform /></ProtectedRoute>} />
+          <Route path="customers" element={<ProtectedRoute requireSuperadmin><Customers /></ProtectedRoute>} />
+          <Route path="customers/profiles" element={<ProtectedRoute requireSuperadmin><CustomerProfiles /></ProtectedRoute>} />
+          <Route path="brands" element={<ProtectedRoute requireSuperadmin><Brands /></ProtectedRoute>} />
+          <Route path="invoices" element={<ProtectedRoute requireSuperadmin><Invoices /></ProtectedRoute>} />
+          <Route path="b2b-analytics" element={<ProtectedRoute requireSuperadmin><B2BAnalytics /></ProtectedRoute>} />
         </Route>
       </Routes>
       </Suspense>
       </EnvironmentProvider>
-      </ShopifyAppBridgeProvider>
     </BrowserRouter>
   )
 }

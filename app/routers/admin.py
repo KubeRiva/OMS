@@ -2,7 +2,7 @@ import logging
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -337,7 +337,7 @@ async def delete_group(
 
 # ── User Access Management (org + env roles) ──────────────────────────────────
 
-from app.schemas.auth import UserAccessResponse, OrgRoleEntry, EnvRoleEntry  # noqa: E402
+from app.schemas.auth import UserAccessResponse, OrgRoleEntry, EnvRoleEntry, OrgMemberResponse
 
 
 async def _build_user_access(user_id: UUID, db: AsyncSession) -> UserAccessResponse:

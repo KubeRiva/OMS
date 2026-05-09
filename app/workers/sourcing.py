@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
     default_retry_delay=30,
     acks_late=True,
     reject_on_worker_lost=True,
+    rate_limit="100/m",
 )
 def source_order(self, order_id: str, environment_id: str = ""):
     """Run sourcing engine for an order and transition it through the pipeline."""
@@ -25,6 +26,13 @@ def source_order(self, order_id: str, environment_id: str = ""):
     from sqlalchemy import select
     from app.config import settings
     from app.models.postgres.order_models import Order, OrderStatus
+    # Import all related mappers so SQLAlchemy can resolve cross-model relationships
+    import app.models.postgres.brand_models      # noqa: F401 — Brand (order.brand_id, order.seller_brand_id)
+    import app.models.postgres.b2b_models        # noqa: F401 — CustomerAccount
+    import app.models.postgres.auth_models       # noqa: F401 — User (order.approved_by_id)
+    import app.models.postgres.node_models       # noqa: F401 — FulfillmentNode
+    import app.models.postgres.connector_models  # noqa: F401 — Connector
+    import app.models.postgres.sourcing_rule_models  # noqa: F401 — SourcingRule
     from app.services.sourcing_engine import SourcingEngine
     from app.workers.env_utils import get_env_db_url, get_env_mongo_events_db, get_env_mongo_ai_db
 
@@ -38,6 +46,7 @@ def source_order(self, order_id: str, environment_id: str = ""):
         from app.models.postgres import (  # noqa
             order_models, inventory_models, node_models,
             sourcing_rule_models, connector_models, auth_models, lifecycle_models,
+            b2b_models, brand_models,
         )
         engine = create_async_engine(db_url, echo=False)
         factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -156,7 +165,12 @@ def source_order(self, order_id: str, environment_id: str = ""):
                             if hasattr(order.fulfillment_type, "value")
                             else str(order.fulfillment_type or "SHIP_TO_HOME")
                         )
-                        cluster_key = f"{channel}|{region}|{amount_bucket}|{fulfillment_type}"
+                        brand_slug = "default"
+                        if getattr(order, "brand_id", None):
+                            from app.models.postgres.brand_models import Brand
+                            _brand_obj = await session.get(Brand, order.brand_id)
+                            brand_slug = _brand_obj.slug if _brand_obj else "default"
+                        cluster_key = f"{brand_slug}|{channel}|{region}|{amount_bucket}|{fulfillment_type}"
 
                         # Build a lookup dict from candidates_evaluated for extra node data
                         candidates_by_node: dict = {}
@@ -181,6 +195,8 @@ def source_order(self, order_id: str, environment_id: str = ""):
                                 "sourcing_score": cand_data.get("score") or sourcing_result.sourcing_score,
                                 "predicted_cost": cand_data.get("estimated_cost"),
                                 "predicted_distance_miles": cand_data.get("distance_miles"),
+                                "brand_id": str(order.brand_id) if getattr(order, "brand_id", None) else None,
+                                "brand_slug": brand_slug,
                                 "channel": channel,
                                 "region": region,
                                 "amount_bucket": amount_bucket,
@@ -258,6 +274,10 @@ def retry_backordered_orders(environment_id: str = ""):
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
     from app.config import settings
+    from app.models.postgres import (  # noqa: register all mappers Order references
+        order_models, inventory_models, node_models, sourcing_rule_models,
+        connector_models, auth_models, lifecycle_models, b2b_models, brand_models,
+    )
     from app.models.postgres.order_models import Order, OrderStatus, OrderItem
     from app.workers.env_utils import get_env_db_url
     import re
@@ -266,16 +286,19 @@ def retry_backordered_orders(environment_id: str = ""):
     engine = create_engine(sync_db_url, pool_pre_ping=True)
     Session = sessionmaker(bind=engine)
     session = Session()
-    
+
     try:
         cutoff = datetime.utcnow() - timedelta(hours=settings.BACKORDER_MAX_AGE_HOURS)
         
         # Find orders with backordered items using two queries to avoid complex WHERE clause issues
         
-        # Query 1: Orders in BACKORDERED status within the retry window
+        # Query 1: Orders in BACKORDERED status within the retry window.
+        # Exclude B2B orders still awaiting approval.
+        from app.models.postgres.order_models import ApprovalStatus
         backordered_orders = session.query(Order).filter(
             Order.status == OrderStatus.BACKORDERED,
-            Order.backordered_since >= cutoff
+            Order.backordered_since >= cutoff,
+            Order.approval_status != ApprovalStatus.PENDING.value,
         ).all()
         
         # Query 2: Orders with line items that have quantity_backordered > 0
@@ -325,6 +348,10 @@ def source_pending_orders(environment_id: str = ""):
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
     from app.config import settings
+    from app.models.postgres import (  # noqa: register all mappers Order references
+        order_models, inventory_models, node_models, sourcing_rule_models,
+        connector_models, auth_models, lifecycle_models, b2b_models, brand_models,
+    )
     from app.models.postgres.order_models import Order, OrderStatus, FulfillmentAllocation
     from app.workers.env_utils import get_env_db_url
     import re
@@ -333,12 +360,14 @@ def source_pending_orders(environment_id: str = ""):
     engine = create_engine(sync_db_url, pool_pre_ping=True)
     Session = sessionmaker(bind=engine)
     session = Session()
-    
+
     try:
-        # Find orders in CONFIRMED status that have no allocations yet (i.e., not yet sourced)
-        # This catches orders that may have slipped through the initial sourcing trigger
+        # Find orders in CONFIRMED status that have no allocations yet (i.e., not yet sourced).
+        # Exclude orders still awaiting B2B approval — they must not be sourced until approved.
+        from app.models.postgres.order_models import ApprovalStatus
         confirmed_unsourced = session.query(Order).filter(
-            Order.status == OrderStatus.CONFIRMED
+            Order.status == OrderStatus.CONFIRMED,
+            Order.approval_status != ApprovalStatus.PENDING.value,
         ).order_by(Order.created_at).limit(50).all()
         
         # Further filter: only source if no successful allocations exist
@@ -359,7 +388,7 @@ def source_pending_orders(environment_id: str = ""):
         for order in orders_to_source:
             logger.info(f"Queuing source_order for unsourced order {order.order_number} (id={order.id})")
             source_order.delay(order.id, environment_id)
-
+            
     except Exception as e:
         logger.error(f"Error in source_pending_orders: {str(e)}", exc_info=True)
     finally:

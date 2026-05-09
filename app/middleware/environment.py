@@ -29,6 +29,16 @@ _WEBHOOK_RE = re.compile(r"^/connectors/[^/]+/webhook$")
 _ENV_CACHE_TTL = 60  # seconds
 
 
+async def _attach_tenant_mode(session, env) -> None:
+    """Fetch the org's tenant_mode and attach it directly on the env object."""
+    try:
+        from app.models.postgres.org_models import Organization
+        org = await session.get(Organization, env.organization_id)
+        env.tenant_mode = org.tenant_mode if org else "HYBRID"
+    except Exception:
+        env.tenant_mode = "HYBRID"
+
+
 class EnvironmentMiddleware:
     """Resolve the active environment and store it in request.state.environment.
 
@@ -68,12 +78,15 @@ class EnvironmentMiddleware:
                 )
                 await response(scope, receive, send)
                 return
+            tenant_mode = getattr(env, "tenant_mode", "HYBRID")
             scope["state"] = scope.get("state") or {}
             scope["state"]["environment"] = env
             scope["state"]["environment_id"] = str(env.id)
+            scope["state"]["tenant_mode"] = tenant_mode
             # Also set on request.state for compatibility
             request.state.environment = env
             request.state.environment_id = str(env.id)
+            request.state.tenant_mode = tenant_mode
 
         await self.app(scope, receive, send)
 
@@ -113,6 +126,7 @@ class EnvironmentMiddleware:
                     )
                     env = result.scalar_one_or_none()
                     if env:
+                        await _attach_tenant_mode(session, env)
                         return env
 
                 # Fall back to system-wide default
@@ -122,7 +136,10 @@ class EnvironmentMiddleware:
                     .where(Environment.status == EnvironmentStatus.ACTIVE)
                     .limit(1)
                 )
-                return result.scalar_one_or_none()
+                env = result.scalar_one_or_none()
+                if env:
+                    await _attach_tenant_mode(session, env)
+                return env
 
         except Exception as exc:
             logger.warning("EnvironmentMiddleware: DB lookup failed: %s", exc)
@@ -168,6 +185,7 @@ class EnvironmentMiddleware:
                 "pg_host": env.pg_host,
                 "pg_port": env.pg_port,
                 "is_default": env.is_default,
+                "tenant_mode": getattr(env, "tenant_mode", "HYBRID"),
             }
             await redis.setex(f"env:{env_id}", _ENV_CACHE_TTL, json.dumps(payload))
             await redis.aclose()
@@ -195,4 +213,5 @@ class EnvironmentMiddleware:
         env.pg_user = None   # credentials not cached in Redis
         env.pg_password = None  # credentials not cached in Redis
         env.is_default = data.get("is_default", False)
+        env.tenant_mode = data.get("tenant_mode", "HYBRID")
         return env

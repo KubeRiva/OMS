@@ -3,6 +3,7 @@ import logging
 from datetime import datetime
 from celery import shared_task
 
+from app.config import settings
 from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -62,8 +63,21 @@ def start_picking(self, order_id: str, environment_id: str = ""):
 
     CRITICAL: Validates order state and allocation consistency before transition.
     """
+    from app.models.postgres import (  # noqa: register all mappers Order references
+        order_models, inventory_models, node_models, sourcing_rule_models,
+        connector_models, auth_models, lifecycle_models, b2b_models, brand_models,
+    )
     from app.models.postgres.order_models import Order, FulfillmentAllocation, OrderStatus, AllocationStatus
-    from app.models.postgres import lifecycle_models  # noqa: F401
+
+    # Idempotency guard — prevent duplicate picking transitions from concurrent
+    # task deliveries (e.g. Celery retry racing with the original message).
+    import redis as redis_lib
+    _r = redis_lib.from_url(settings.REDIS_URL)
+    _env_ns = environment_id or "default"
+    idem_key = f"task:start_picking:{_env_ns}:{order_id}"
+    if not _r.set(idem_key, "1", nx=True, ex=600):
+        logger.info(f"start_picking duplicate detected for {order_id}, skipping")
+        return
 
     session, engine = _get_sync_session(environment_id)
     try:
@@ -130,12 +144,16 @@ def start_picking(self, order_id: str, environment_id: str = ""):
             "validation": "passed",
         }, environment_id)
 
-        # Auto-advance to packing after a realistic delay
+        # Auto-advance to packing. In production this would be triggered by
+        # a warehouse scan event; for non-production environments we auto-advance
+        # after a short delay to keep the demo pipeline moving.
+        from app.config import settings
+        pick_delay = 5 if settings.ENVIRONMENT != "production" else 300
         celery_app.send_task(
             "app.workers.fulfillment.complete_packing",
             args=[order_id, environment_id],
             queue="fulfillment",
-            countdown=5,  # seconds (short for demo; would be longer in production)
+            countdown=pick_delay,
         )
     except Exception as exc:
         session.rollback()
@@ -160,8 +178,11 @@ def start_picking(self, order_id: str, environment_id: str = ""):
 )
 def complete_packing(self, order_id: str, environment_id: str = ""):
     """Transition order PACKING → READY_TO_SHIP or READY_FOR_PICKUP per lifecycle."""
+    from app.models.postgres import (  # noqa: register all mappers Order references
+        order_models, inventory_models, node_models, sourcing_rule_models,
+        connector_models, auth_models, lifecycle_models, b2b_models, brand_models,
+    )
     from app.models.postgres.order_models import Order, FulfillmentAllocation, OrderStatus, AllocationStatus
-    from app.models.postgres import lifecycle_models  # noqa: F401
     from app.services.lifecycle_engine import (
         resolve_lifecycle_sync, get_post_packing_status, get_action_for_status,
         should_book_carrier, ACTION_BOOK_SHIPMENT, ACTION_SEND_PICKUP_READY,
@@ -175,8 +196,12 @@ def complete_packing(self, order_id: str, environment_id: str = ""):
 
         ft = order.fulfillment_type.value if hasattr(order.fulfillment_type, "value") else str(order.fulfillment_type or "")
         ch = order.channel.value if hasattr(order.channel, "value") else str(order.channel or "")
+        ot = None
+        if hasattr(order, "order_type") and order.order_type is not None:
+            ot = order.order_type.value if hasattr(order.order_type, "value") else str(order.order_type)
+        bid = str(order.brand_id) if hasattr(order, "brand_id") and order.brand_id else None
 
-        lc_dict, _ = resolve_lifecycle_sync(environment_id, ft, ch)
+        lc_dict, _ = resolve_lifecycle_sync(environment_id, ft, ch, pipeline_type="ORDER", order_type=ot, brand_id=bid)
         post_packing = get_post_packing_status(lc_dict, ft)
 
         order.status = OrderStatus.PACKING

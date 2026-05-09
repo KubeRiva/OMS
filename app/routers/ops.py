@@ -240,12 +240,12 @@ async def ops_logs(
         lv = (line.get("level") or "INFO").upper()
         return level_order.get(lv, 1)
 
-    filtered = [line for line in all_lines if _log_level(line) >= min_level]
+    filtered = [l for l in all_lines if _log_level(l) >= min_level]
 
     # Filter by keyword/order_id
     if search:
         s = search.lower()
-        filtered = [line for line in filtered if s in json.dumps(line).lower()]
+        filtered = [l for l in filtered if s in json.dumps(l).lower()]
 
     # Sort by timestamp desc
     def _ts(line: dict) -> str:
@@ -410,8 +410,8 @@ async def _stream_ai_analysis(
         client = anthropic.AsyncAnthropic(api_key=api_key)
 
         async with client.messages.stream(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=1500,
+            model="claude-sonnet-4-6",
+            max_tokens=2048,
             system=system_prompt,
             messages=[{"role": "user", "content": user_message}],
         ) as stream:
@@ -450,7 +450,7 @@ async def ops_analyze(
         for ev in audit:
             context_parts.append(f"- {ev.get('timestamp','')} [{ev.get('event_type','')}] {json.dumps(ev.get('data',{}))}")
         if errors:
-            context_parts.append("\n## Errors for this order\n")
+            context_parts.append(f"\n## Errors for this order\n")
             for ev in errors:
                 context_parts.append(f"- {ev.get('timestamp','')} [{ev.get('source_service','')}] {ev.get('error_type','')} — {ev.get('message','')}")
                 if ev.get("stack_trace"):
@@ -461,7 +461,7 @@ async def ops_analyze(
         issue = await db.error_issues.find_one({"fingerprint": req.fingerprint})
         if issue:
             issue = _serialize(issue)
-            context_parts.append("\n## Error Issue\n")
+            context_parts.append(f"\n## Error Issue\n")
             context_parts.append(f"Type: {issue.get('error_type','')}")
             context_parts.append(f"Count: {issue.get('occurrence_count', 0)} occurrences")
             context_parts.append(f"Service: {issue.get('source_service','')}")

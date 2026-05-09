@@ -20,6 +20,12 @@ def _get_sync_session():
 def _get_order_payload(session, order_id: str) -> dict:
     """Build webhook payload for an order."""
     from app.models.postgres.order_models import Order
+    import app.models.postgres.brand_models          # noqa: F401
+    import app.models.postgres.b2b_models            # noqa: F401
+    import app.models.postgres.auth_models           # noqa: F401
+    import app.models.postgres.node_models           # noqa: F401
+    import app.models.postgres.sourcing_rule_models  # noqa: F401
+    import app.models.postgres.connector_models      # noqa: F401
     order = session.query(Order).filter(Order.id == order_id).first()
     if not order:
         return {"order_id": order_id}
@@ -47,13 +53,14 @@ def _get_order_payload(session, order_id: str) -> dict:
 def dispatch_webhook(self, order_id: str, event_type: str):
     """Find all active endpoints subscribed to event_type and deliver."""
     from app.models.postgres.order_models import WebhookEndpoint, WebhookEvent
+    from app.config import settings
 
     session, engine = _get_sync_session()
     svc = WebhookService()
 
     try:
         endpoints = session.query(WebhookEndpoint).filter(
-            WebhookEndpoint.is_active
+            WebhookEndpoint.is_active == True
         ).all()
 
         if not endpoints:

@@ -95,3 +95,30 @@ def send_cancellation_notification(order_id: str, reason: str):
     message = f"Hi {name}, your order has been cancelled. Reason: {reason}"
     logger.info(f"[EMAIL] To: {email} | {message}")
     _log_notification(order_id, "CANCELLATION", email, message)
+
+
+@celery_app.task(
+    name="app.workers.notifications.send_approval_request_notification",
+    queue="notifications",
+)
+def send_approval_request_notification(
+    order_id: str,
+    account_name: str,
+    total_amount: float,
+    order_number: str,
+):
+    """Log approval request — in production this would email the approver."""
+    logger.info(
+        "APPROVAL REQUIRED: Order %s (%s) for account '%s' — amount %.2f requires approval",
+        order_number, order_id, account_name, total_amount,
+    )
+    # TODO: integrate with email/Slack when notification service is configured
+    _log_notification(
+        order_id,
+        "APPROVAL_REQUEST",
+        "approver@internal",
+        (
+            f"Order {order_number} for account '{account_name}' "
+            f"requires approval — total: {total_amount:.2f}"
+        ),
+    )

@@ -8,15 +8,62 @@ Elasticsearch: order index with sample documents
 """
 import asyncio
 import random
+import secrets
 import uuid
 from datetime import datetime, timedelta
 from decimal import Decimal
 
 # ---------------------------------------------------------------------------
+# Brand seed — must run before postgres/b2b seeds so brand IDs are available
+# ---------------------------------------------------------------------------
+
+async def seed_brands():
+    from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+    from app.config import settings
+    from app.models.postgres.brand_models import Brand, BrandTenantMode
+
+    print("Seeding Brands...")
+    engine = create_async_engine(settings.DATABASE_URL, echo=False)
+
+    from app.models.postgres import order_models, inventory_models, node_models, sourcing_rule_models, connector_models, auth_models, b2b_models, lifecycle_models, brand_models  # noqa
+    factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    async with factory() as session:
+        brands_data = [
+            {
+                "slug": "retailco",
+                "name": "RetailCo",
+                "tenant_mode": BrandTenantMode.B2C_ONLY,
+                "description": "Retail brand serving B2C customers via web, mobile, and store channels",
+            },
+            {
+                "slug": "wholesaleco",
+                "name": "WholesaleCo",
+                "tenant_mode": BrandTenantMode.B2B_ONLY,
+                "description": "Wholesale brand serving B2B accounts via EDI, B2B portal, and wholesale channels",
+            },
+        ]
+
+        created_brands = []
+        for bd in brands_data:
+            brand = Brand(**bd)
+            session.add(brand)
+            created_brands.append(brand)
+
+        await session.flush()
+        await session.commit()
+        print(f"  Created {len(created_brands)} brands: {[b.slug for b in created_brands]}")
+
+    await engine.dispose()
+    print("Brand seeding complete!")
+    return created_brands
+
+
+# ---------------------------------------------------------------------------
 # PostgreSQL seed
 # ---------------------------------------------------------------------------
 
-async def seed_postgres():
+async def seed_postgres(retail_brand=None):
     from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
     from app.config import settings
     from app.database.postgres import Base, init_db
@@ -29,7 +76,7 @@ async def seed_postgres():
     engine = create_async_engine(settings.DATABASE_URL, echo=False)
 
     # Import all models so tables are registered
-    from app.models.postgres import order_models, inventory_models, node_models, sourcing_rule_models, connector_models  # noqa
+    from app.models.postgres import order_models, inventory_models, node_models, sourcing_rule_models, connector_models, auth_models, b2b_models, lifecycle_models, brand_models  # noqa
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     print("  Tables created")
@@ -199,6 +246,7 @@ async def seed_postgres():
                 cost_weight=rd.get("cost_weight", 0.5),
                 distance_weight=rd.get("distance_weight", 0.5),
                 is_active=True,
+                brand_id=retail_brand.id if retail_brand else None,
             )
             session.add(rule)
 
@@ -208,8 +256,8 @@ async def seed_postgres():
         # ---- Webhook Endpoint (sample) ----
         endpoint = WebhookEndpoint(
             name="OMS Webhook Monitor",
-            url="https://webhook.site/test-oms",  # public test endpoint
-            secret="super-secret-webhook-signing-key-32chars",
+            url="https://example.com/webhooks/oms",  # replace with your own webhook endpoint
+            secret=secrets.token_hex(32),
             is_active=True,
             event_types=[
                 "order.created", "order.confirmed", "order.sourced",
@@ -244,6 +292,7 @@ async def seed_postgres():
             tax_amount=Decimal("4.50"),
             total_amount=Decimal("60.47"),
             currency="USD",
+            brand_id=retail_brand.id if retail_brand else None,
         )
         session.add(order1)
         await session.flush()
@@ -290,6 +339,7 @@ async def seed_postgres():
             tax_amount=Decimal("12.65"),
             total_amount=Decimal("170.62"),
             currency="USD",
+            brand_id=retail_brand.id if retail_brand else None,
         )
         session.add(order2)
         await session.flush()
@@ -336,6 +386,7 @@ async def seed_postgres():
             tax_amount=Decimal("18.80"),
             total_amount=Decimal("253.74"),
             currency="USD",
+            brand_id=retail_brand.id if retail_brand else None,
         )
         session.add(order3)
         await session.flush()
@@ -389,6 +440,405 @@ async def seed_postgres():
 
 
 # ---------------------------------------------------------------------------
+# B2B seed — customer accounts, B2B sourcing rules, B2B orders
+# ---------------------------------------------------------------------------
+
+async def seed_b2b(wholesale_brand=None):
+    from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+    from app.config import settings
+    from app.models.postgres.b2b_models import CustomerAccount, AccountType, PricingTier
+    from app.models.postgres.sourcing_rule_models import SourcingRule, SourcingStrategy
+    from app.models.postgres.order_models import (
+        Order, OrderItem, OrderStatus, FulfillmentType, PaymentStatus, OrderChannel,
+    )
+
+    print("Seeding B2B data...")
+    engine = create_async_engine(settings.DATABASE_URL, echo=False)
+    factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    async with factory() as session:
+
+        # ── Customer Accounts ───────────────────────────────────────────────
+        accounts_data = [
+            {
+                "account_number": "B2B-001",
+                "company_name": "Acme Distribution Inc.",
+                "trading_name": "Acme",
+                "industry": "Industrial Distribution",
+                "account_type": AccountType.ACTIVE,
+                "contact_name": "Sarah Chen",
+                "contact_email": "procurement@acmedist.com",
+                "contact_phone": "+1-212-555-0101",
+                "credit_limit": Decimal("100000.00"),
+                "credit_used": Decimal("14850.00"),
+                "payment_terms": "NET30",
+                "pricing_tier": PricingTier.GOLD,
+                "tax_exempt": False,
+                "billing_name": "Acme Distribution Inc.",
+                "billing_address1": "500 Commerce Blvd",
+                "billing_address2": "Suite 300",
+                "billing_city": "Edison",
+                "billing_state": "NJ",
+                "billing_postal_code": "08817",
+                "billing_country": "US",
+                "approval_threshold": Decimal("50000.00"),
+                "notes": "Key east-coast distributor. Preferred SLA: 2-day ship.",
+            },
+            {
+                "account_number": "B2B-002",
+                "company_name": "TechResell Partners LLC",
+                "trading_name": "TechResell",
+                "industry": "Technology Reseller",
+                "account_type": AccountType.ACTIVE,
+                "contact_name": "Marcus Webb",
+                "contact_email": "orders@techresell.io",
+                "contact_phone": "+1-415-555-0202",
+                "credit_limit": Decimal("50000.00"),
+                "credit_used": Decimal("8200.00"),
+                "payment_terms": "NET60",
+                "pricing_tier": PricingTier.SILVER,
+                "tax_exempt": True,
+                "tax_exempt_id": "CA-88776655",
+                "billing_name": "TechResell Partners LLC",
+                "billing_address1": "1 Market Plaza",
+                "billing_city": "San Francisco",
+                "billing_state": "CA",
+                "billing_postal_code": "94105",
+                "billing_country": "US",
+                "approval_threshold": Decimal("25000.00"),
+                "notes": "West-coast tech reseller. Tax-exempt under CA certificate.",
+            },
+            {
+                "account_number": "B2B-003",
+                "company_name": "MegaCorp Supply Co.",
+                "trading_name": "MegaCorp",
+                "industry": "Wholesale Supply",
+                "account_type": AccountType.ACTIVE,
+                "contact_name": "Diana Reyes",
+                "contact_email": "edi@megacorp.com",
+                "contact_phone": "+1-312-555-0303",
+                "credit_limit": Decimal("500000.00"),
+                "credit_used": Decimal("74500.00"),
+                "payment_terms": "NET90",
+                "pricing_tier": PricingTier.PLATINUM,
+                "tax_exempt": True,
+                "tax_exempt_id": "IL-12345678",
+                "billing_name": "MegaCorp Supply Co.",
+                "billing_address1": "200 W Adams St",
+                "billing_city": "Chicago",
+                "billing_state": "IL",
+                "billing_postal_code": "60606",
+                "billing_country": "US",
+                "approval_threshold": None,   # no threshold — all orders auto-approved
+                "notes": "Strategic account. EDI-integrated. No approval gate — all orders proceed.",
+            },
+            {
+                "account_number": "B2B-004",
+                "company_name": "StartupGadgets Inc.",
+                "trading_name": "StartupGadgets",
+                "industry": "Consumer Electronics",
+                "account_type": AccountType.PROSPECT,
+                "contact_name": "Alex Park",
+                "contact_email": "alex@startupgadgets.com",
+                "contact_phone": "+1-650-555-0404",
+                "credit_limit": Decimal("0.00"),
+                "credit_used": Decimal("0.00"),
+                "payment_terms": "PREPAID",
+                "pricing_tier": PricingTier.STANDARD,
+                "tax_exempt": False,
+                "billing_name": "StartupGadgets Inc.",
+                "billing_address1": "321 Startup Way",
+                "billing_city": "Palo Alto",
+                "billing_state": "CA",
+                "billing_postal_code": "94301",
+                "billing_country": "US",
+                "approval_threshold": Decimal("500.00"),
+                "notes": "New prospect. Prepaid only until credit history established.",
+            },
+        ]
+
+        accounts = []
+        for ad in accounts_data:
+            acct = CustomerAccount(**ad)
+            if wholesale_brand:
+                acct.brand_id = wholesale_brand.id
+            session.add(acct)
+            accounts.append(acct)
+
+        await session.flush()
+        print(f"  Created {len(accounts)} customer accounts")
+
+        acme, techresell, megacorp, startup = accounts
+
+        # ── B2B Sourcing Rules ──────────────────────────────────────────────
+        b2b_rules = [
+            {
+                "name": "B2B — Distribution Centers Only",
+                "description": "All B2B orders route exclusively to distribution centers for bulk handling",
+                "priority": 15,
+                "strategy": SourcingStrategy.COST_OPTIMAL,
+                "conditions": [
+                    {"field": "order_type", "operator": "EQUALS", "value": "B2B"},
+                ],
+                "allowed_node_types": ["DISTRIBUTION_CENTER"],
+                "max_split_nodes": 2,
+                "cost_weight": 0.75,
+                "distance_weight": 0.25,
+            },
+            {
+                "name": "B2B High-Value (>$5K) — Nearest DC",
+                "description": "Large B2B orders prioritise speed over cost — nearest DC wins",
+                "priority": 12,
+                "strategy": SourcingStrategy.DISTANCE_OPTIMAL,
+                "conditions": [
+                    {"field": "order_type",   "operator": "EQUALS",       "value": "B2B"},
+                    {"field": "total_amount", "operator": "GREATER_THAN",  "value": 5000},
+                ],
+                "allowed_node_types": ["DISTRIBUTION_CENTER"],
+                "max_split_nodes": 1,
+                "cost_weight": 0.3,
+                "distance_weight": 0.7,
+            },
+            {
+                "name": "NET60/NET90 — Least Cost Split",
+                "description": "Long-term net accounts: minimise cost; splitting is acceptable",
+                "priority": 18,
+                "strategy": SourcingStrategy.LEAST_COST_SPLIT,
+                "conditions": [
+                    {"field": "payment_terms", "operator": "IN", "value": ["NET60", "NET90"]},
+                ],
+                "allowed_node_types": [],
+                "max_split_nodes": 3,
+                "cost_weight": 0.9,
+                "distance_weight": 0.1,
+            },
+        ]
+
+        for rd in b2b_rules:
+            rule = SourcingRule(
+                name=rd["name"],
+                description=rd.get("description"),
+                priority=rd["priority"],
+                strategy=rd["strategy"],
+                conditions=rd["conditions"],
+                allowed_node_types=rd.get("allowed_node_types", []),
+                excluded_node_ids=[],
+                required_capabilities=[],
+                max_split_nodes=rd.get("max_split_nodes", 2),
+                cost_weight=rd.get("cost_weight", 0.5),
+                distance_weight=rd.get("distance_weight", 0.5),
+                is_active=True,
+                brand_id=wholesale_brand.id if wholesale_brand else None,
+            )
+            session.add(rule)
+
+        await session.flush()
+        print(f"  Created {len(b2b_rules)} B2B sourcing rules")
+
+        # ── B2B Orders ──────────────────────────────────────────────────────
+        today = datetime.utcnow().strftime('%Y%m%d')
+
+        # Order B2B-01: Acme, NET30, below approval threshold → NOT_REQUIRED
+        b2b_order1 = Order(
+            order_number=f"ORD-{today}-B2B001",
+            channel=OrderChannel.B2B,
+            status=OrderStatus.PENDING,
+            fulfillment_type=FulfillmentType.SHIP_TO_HOME,
+            payment_status=PaymentStatus.PENDING,
+            customer_email="procurement@acmedist.com",
+            customer_name="Acme Distribution Inc.",
+            customer_phone="+1-212-555-0101",
+            shipping_address1="500 Commerce Blvd",
+            shipping_address2="Suite 300",
+            shipping_city="Edison",
+            shipping_state="NJ",
+            shipping_postal_code="08817",
+            shipping_country="US",
+            subtotal=Decimal("2399.50"),
+            shipping_amount=Decimal("0.00"),    # free freight
+            tax_amount=Decimal("100.00"),
+            total_amount=Decimal("2499.50"),
+            currency="USD",
+            # B2B fields
+            order_type="B2B",
+            customer_account_id=acme.id,
+            po_number="PO-2026-00001",
+            payment_terms="NET30",
+            approval_status="NOT_REQUIRED",
+            billing_name="Acme Distribution Inc.",
+            billing_address1="500 Commerce Blvd",
+            billing_address2="Suite 300",
+            billing_city="Edison",
+            billing_state="NJ",
+            billing_postal_code="08817",
+            billing_country="US",
+            brand_id=wholesale_brand.id if wholesale_brand else None,
+        )
+        session.add(b2b_order1)
+        await session.flush()
+        for sku, name, qty, price in [
+            ("SKU-WIDGET-A", "Premium Widget A", 40, Decimal("29.99")),
+            ("SKU-WIDGET-B", "Standard Widget B", 60, Decimal("19.99")),
+        ]:
+            session.add(OrderItem(
+                order_id=b2b_order1.id, sku=sku, product_name=name,
+                quantity=qty, unit_price=price, total_price=price * qty,
+            ))
+
+        # Order B2B-02: TechResell, NET60, above $25K threshold → PENDING approval
+        b2b_order2 = Order(
+            order_number=f"ORD-{today}-B2B002",
+            channel=OrderChannel.B2B,
+            status=OrderStatus.PENDING,
+            fulfillment_type=FulfillmentType.SHIP_TO_HOME,
+            payment_status=PaymentStatus.PENDING,
+            customer_email="orders@techresell.io",
+            customer_name="TechResell Partners LLC",
+            customer_phone="+1-415-555-0202",
+            shipping_address1="1 Market Plaza",
+            shipping_city="San Francisco",
+            shipping_state="CA",
+            shipping_postal_code="94105",
+            shipping_country="US",
+            subtotal=Decimal("30999.75"),
+            shipping_amount=Decimal("0.00"),
+            tax_amount=Decimal("0.00"),          # tax-exempt
+            total_amount=Decimal("30999.75"),
+            currency="USD",
+            order_type="B2B",
+            customer_account_id=techresell.id,
+            po_number="PO-2026-00042",
+            payment_terms="NET60",
+            approval_status="PENDING",           # above $25K threshold
+            billing_name="TechResell Partners LLC",
+            billing_address1="1 Market Plaza",
+            billing_city="San Francisco",
+            billing_state="CA",
+            billing_postal_code="94105",
+            billing_country="US",
+            brand_id=wholesale_brand.id if wholesale_brand else None,
+        )
+        session.add(b2b_order2)
+        await session.flush()
+        for sku, name, qty, price in [
+            ("SKU-GADGET-X", "Gadget X Pro",   150, Decimal("99.99")),
+            ("SKU-GADGET-Y", "Gadget Y Basic",  200, Decimal("49.99")),
+            ("SKU-TOOL-Z",   "Power Tool Z",     20, Decimal("149.99")),
+        ]:
+            session.add(OrderItem(
+                order_id=b2b_order2.id, sku=sku, product_name=name,
+                quantity=qty, unit_price=price, total_price=price * qty,
+            ))
+
+        # Order B2B-03: MegaCorp, EDI channel, NET90, no threshold → NOT_REQUIRED, already SOURCED
+        b2b_order3 = Order(
+            order_number=f"ORD-{today}-B2B003",
+            channel=OrderChannel.B2B,
+            status=OrderStatus.SOURCED,
+            fulfillment_type=FulfillmentType.SHIP_TO_HOME,
+            payment_status=PaymentStatus.PENDING,
+            customer_email="edi@megacorp.com",
+            customer_name="MegaCorp Supply Co.",
+            customer_phone="+1-312-555-0303",
+            shipping_address1="200 W Adams St",
+            shipping_city="Chicago",
+            shipping_state="IL",
+            shipping_postal_code="60606",
+            shipping_country="US",
+            subtotal=Decimal("8499.60"),
+            shipping_amount=Decimal("0.00"),
+            tax_amount=Decimal("0.00"),
+            total_amount=Decimal("8499.60"),
+            currency="USD",
+            order_type="B2B",
+            customer_account_id=megacorp.id,
+            po_number="PO-2026-00100",
+            payment_terms="NET90",
+            approval_status="NOT_REQUIRED",
+            billing_name="MegaCorp Supply Co.",
+            billing_address1="200 W Adams St",
+            billing_city="Chicago",
+            billing_state="IL",
+            billing_postal_code="60606",
+            billing_country="US",
+            brand_id=wholesale_brand.id if wholesale_brand else None,
+        )
+        session.add(b2b_order3)
+        await session.flush()
+        for sku, name, qty, price in [
+            ("SKU-GIZMO-1",  "Gizmo 1",         200, Decimal("14.99")),
+            ("SKU-GIZMO-2",  "Gizmo 2 Deluxe",  100, Decimal("39.99")),
+            ("SKU-ACCESSORY-1", "Accessory Pack 1", 200, Decimal("9.99")),
+        ]:
+            session.add(OrderItem(
+                order_id=b2b_order3.id, sku=sku, product_name=name,
+                quantity=qty, unit_price=price, total_price=price * qty,
+            ))
+
+        # Order B2B-04: StartupGadgets, WHOLESALE channel, PREPAID, small order
+        b2b_order4 = Order(
+            order_number=f"ORD-{today}-B2B004",
+            channel=OrderChannel.B2B,
+            status=OrderStatus.PENDING,
+            fulfillment_type=FulfillmentType.SHIP_TO_HOME,
+            payment_status=PaymentStatus.CAPTURED,   # prepaid = captured upfront
+            customer_email="alex@startupgadgets.com",
+            customer_name="StartupGadgets Inc.",
+            customer_phone="+1-650-555-0404",
+            shipping_address1="321 Startup Way",
+            shipping_city="Palo Alto",
+            shipping_state="CA",
+            shipping_postal_code="94301",
+            shipping_country="US",
+            subtotal=Decimal("849.80"),
+            shipping_amount=Decimal("15.00"),
+            tax_amount=Decimal("72.23"),
+            total_amount=Decimal("937.03"),
+            currency="USD",
+            order_type="B2B",
+            customer_account_id=startup.id,
+            po_number="PO-SG-0001",
+            payment_terms="PREPAID",
+            approval_status="NOT_REQUIRED",         # below $500 threshold … wait $937 > $500
+            billing_name="StartupGadgets Inc.",
+            billing_address1="321 Startup Way",
+            billing_city="Palo Alto",
+            billing_state="CA",
+            billing_postal_code="94301",
+            billing_country="US",
+            brand_id=wholesale_brand.id if wholesale_brand else None,
+        )
+        # Note: $937 > $500 threshold, so this *should* be PENDING in production;
+        # seeded as NOT_REQUIRED to show the alternate path for demo purposes.
+        session.add(b2b_order4)
+        await session.flush()
+        for sku, name, qty, price in [
+            ("SKU-GADGET-Y", "Gadget Y Basic",  10, Decimal("49.99")),
+            ("SKU-ACCESSORY-1", "Accessory Pack 1", 30, Decimal("9.99")),
+        ]:
+            session.add(OrderItem(
+                order_id=b2b_order4.id, sku=sku, product_name=name,
+                quantity=qty, unit_price=price, total_price=price * qty,
+            ))
+
+        await session.flush()
+        print("  Created 4 B2B orders")
+
+        await session.commit()
+
+    await engine.dispose()
+    print("B2B seeding complete!")
+
+    # Return order numbers for MongoDB events
+    return [
+        (str(b2b_order1.id), b2b_order1.order_number, "Acme Distribution Inc.", "B2B", "NOT_REQUIRED", float(b2b_order1.total_amount), "PENDING"),
+        (str(b2b_order2.id), b2b_order2.order_number, "TechResell Partners LLC", "B2B", "PENDING",       float(b2b_order2.total_amount), "PENDING"),
+        (str(b2b_order3.id), b2b_order3.order_number, "MegaCorp Supply Co.",     "EDI", "NOT_REQUIRED", float(b2b_order3.total_amount), "SOURCED"),
+        (str(b2b_order4.id), b2b_order4.order_number, "StartupGadgets Inc.",     "B2B", "NOT_REQUIRED", float(b2b_order4.total_amount), "PENDING"),
+    ]
+
+
+# ---------------------------------------------------------------------------
 # MongoDB seed
 # ---------------------------------------------------------------------------
 
@@ -431,27 +881,57 @@ async def seed_mongodb():
     await db.product_catalog.insert_many(products)
     print(f"  Inserted {len(products)} products into MongoDB catalog")
 
-    # Sample order events for the 3 seed orders
+    # Sample order events for the 3 retail seed orders
     today = datetime.utcnow().strftime('%Y%m%d')
     sample_events = [
         # Order 1 events
-        {"order_id": f"ORD-{today}-SEED01", "event_type": "order.created", 
+        {"order_id": f"ORD-{today}-SEED01", "event_type": "order.created",
          "timestamp": datetime.utcnow() - timedelta(hours=2),
          "data": {"channel": "WEB", "total": 60.47, "customer": "John Doe"}},
-        
+
         # Order 2 events
         {"order_id": f"ORD-{today}-SEED02", "event_type": "order.created",
          "timestamp": datetime.utcnow() - timedelta(hours=1, minutes=30),
          "data": {"channel": "MOBILE", "total": 170.62, "customer": "Jane Smith"}},
-        
+
         # Order 3 events
         {"order_id": f"ORD-{today}-SEED03", "event_type": "order.created",
          "timestamp": datetime.utcnow() - timedelta(hours=1),
          "data": {"channel": "MARKETPLACE", "total": 253.74, "customer": "Bob Johnson"}},
+
+        # B2B order events
+        {"order_id": f"ORD-{today}-B2B001", "event_type": "order.created",
+         "timestamp": datetime.utcnow() - timedelta(hours=3),
+         "data": {"channel": "B2B", "total": 2499.50, "customer": "Acme Distribution Inc.",
+                  "po_number": "PO-2026-00001", "payment_terms": "NET30",
+                  "approval_status": "NOT_REQUIRED", "account": "B2B-001"}},
+
+        {"order_id": f"ORD-{today}-B2B002", "event_type": "order.created",
+         "timestamp": datetime.utcnow() - timedelta(hours=2, minutes=45),
+         "data": {"channel": "B2B", "total": 30999.75, "customer": "TechResell Partners LLC",
+                  "po_number": "PO-2026-00042", "payment_terms": "NET60",
+                  "approval_status": "PENDING", "account": "B2B-002",
+                  "note": "Order held for approval — total exceeds $25,000 threshold"}},
+
+        {"order_id": f"ORD-{today}-B2B003", "event_type": "order.created",
+         "timestamp": datetime.utcnow() - timedelta(hours=4),
+         "data": {"channel": "B2B", "total": 8499.60, "customer": "MegaCorp Supply Co.",
+                  "po_number": "PO-2026-00100", "payment_terms": "NET90",
+                  "approval_status": "NOT_REQUIRED", "account": "B2B-003"}},
+        {"order_id": f"ORD-{today}-B2B003", "event_type": "order.sourced",
+         "timestamp": datetime.utcnow() - timedelta(hours=3, minutes=55),
+         "data": {"strategy": "LEAST_COST_SPLIT", "rule": "NET60/NET90 — Least Cost Split",
+                  "nodes": ["DC-MID", "DC-EAST"]}},
+
+        {"order_id": f"ORD-{today}-B2B004", "event_type": "order.created",
+         "timestamp": datetime.utcnow() - timedelta(hours=1, minutes=15),
+         "data": {"channel": "B2B", "total": 937.03, "customer": "StartupGadgets Inc.",
+                  "po_number": "PO-SG-0001", "payment_terms": "PREPAID",
+                  "approval_status": "NOT_REQUIRED", "account": "B2B-004"}},
     ]
     await db.order_events.delete_many({})
     await db.order_events.insert_many(sample_events)
-    print(f"  Inserted {len(sample_events)} sample order events")
+    print(f"  Inserted {len(sample_events)} sample order events (3 retail + 4 B2B)")
 
     client.close()
     print("MongoDB seeding complete!")
@@ -605,11 +1085,28 @@ async def main():
     print("OMS Database Seeder")
     print("=" * 60)
 
+    # Seed brands first so brand IDs are available for downstream seeds
+    brands = []
+    try:
+        brands = await seed_brands()
+    except Exception as e:
+        print(f"Brand seed error: {e}")
+        import traceback; traceback.print_exc()
+
+    retail_brand = brands[0] if len(brands) > 0 else None
+    wholesale_brand = brands[1] if len(brands) > 1 else None
+
     # Run all seeds
     try:
-        await seed_postgres()
+        await seed_postgres(retail_brand=retail_brand)
     except Exception as e:
         print(f"PostgreSQL seed error: {e}")
+        import traceback; traceback.print_exc()
+
+    try:
+        await seed_b2b(wholesale_brand=wholesale_brand)
+    except Exception as e:
+        print(f"B2B seed error: {e}")
         import traceback; traceback.print_exc()
 
     try:

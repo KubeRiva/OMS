@@ -5,6 +5,13 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 
+class CustomStatusDef(BaseModel):
+    key: str = Field(..., min_length=1, max_length=50, pattern=r'^[A-Z0-9_]+$')
+    label: str = Field(..., min_length=1, max_length=100)
+    description: str = ""
+    color: str = "#6b7280"   # tailwind-compatible hex
+
+
 class LifecycleStepCreate(BaseModel):
     status: str
     label: str
@@ -24,8 +31,12 @@ class LifecycleStepResponse(LifecycleStepCreate):
 class LifecycleCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = None
+    pipeline_type: str = "ORDER"         # "ORDER" | "RETURN"
     fulfillment_types: List[str] = Field(default_factory=list)
     channels: List[str] = Field(default_factory=list)
+    order_type: Optional[str] = None     # "RETAIL" | "B2B" | "WHOLESALE" | null
+    brand_id: Optional[str] = None
+    custom_statuses: List[CustomStatusDef] = Field(default_factory=list)
     is_active: bool = True
     is_default: bool = False
     created_by: str = "system"
@@ -35,8 +46,12 @@ class LifecycleCreate(BaseModel):
 class LifecycleUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    pipeline_type: Optional[str] = None
     fulfillment_types: Optional[List[str]] = None
     channels: Optional[List[str]] = None
+    order_type: Optional[str] = None
+    brand_id: Optional[str] = None
+    custom_statuses: Optional[List[CustomStatusDef]] = None
     is_active: Optional[bool] = None
     is_default: Optional[bool] = None
     steps: Optional[List[LifecycleStepCreate]] = None
@@ -46,8 +61,12 @@ class LifecycleResponse(BaseModel):
     id: UUID
     name: str
     description: Optional[str] = None
+    pipeline_type: str
     fulfillment_types: List[str]
     channels: List[str]
+    order_type: Optional[str] = None
+    brand_id: Optional[UUID] = None
+    custom_statuses: List[dict] = []
     is_active: bool
     is_default: bool
     created_by: str
@@ -58,6 +77,5 @@ class LifecycleResponse(BaseModel):
 
 
 class LifecycleResolveResponse(BaseModel):
-    """Result of resolving which lifecycle applies to a given order context."""
     lifecycle: Optional[LifecycleResponse] = None
-    matched_on: str  # "exact", "fulfillment_type", "default", "none"
+    matched_on: str

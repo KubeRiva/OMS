@@ -37,10 +37,7 @@ class ShopifyConnector(BaseConnector):
     # ─── Access Token ─────────────────────────────────────────────────────────
 
     def _get_access_token(self) -> str:
-        """Return the plaintext access token, decrypting if stored encrypted."""
-        from app.services.connectors.shopify_crypto import decrypt_access_token
-        raw = self.config.get("access_token", "")
-        return decrypt_access_token(raw)
+        return self.config.get("access_token", "")
 
     # ─── Inbound: Webhook Validation ─────────────────────────────────────────
 
@@ -233,6 +230,8 @@ class ShopifyConnector(BaseConnector):
             "external_order_id": str(payload["id"]),
             "tags": tags,
             "notes": payload.get("note"),
+            # Stamp brand from connector so inbound orders are automatically attributed
+            "brand_id": str(self.connector.brand_id) if self.connector.brand_id else None,
             "metadata": {
                 "shopify_order_id": payload.get("id"),
                 "shopify_order_number": payload.get("order_number"),

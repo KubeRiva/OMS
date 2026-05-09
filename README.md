@@ -1,170 +1,6 @@
-# KubeRiva OMS
+# OMS — Omni-Channel Order Management System
 
-**The open-source, AI-native order management system** — self-host the order routing stack that replaces any leading OMS.
-
-[![PyPI](https://img.shields.io/pypi/v/kuberiva-oms?color=blue)](https://pypi.org/project/kuberiva-oms/)
-[![CI](https://github.com/KubeRiva/OMS/actions/workflows/ci.yml/badge.svg)](https://github.com/KubeRiva/OMS/actions/workflows/ci.yml)
-[![Docker Build](https://github.com/KubeRiva/OMS/actions/workflows/docker-build.yml/badge.svg)](https://github.com/KubeRiva/OMS/actions/workflows/docker-build.yml)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/)
-[![GHCR](https://img.shields.io/badge/ghcr.io-kuberiva%2Foms--api-blue?logo=docker)](https://github.com/KubeRiva/OMS/pkgs/container/oms-api)
-[![GitHub Stars](https://img.shields.io/github/stars/KubeRiva/OMS?style=social)](https://github.com/KubeRiva/OMS/stargazers)
-[![Discussions](https://img.shields.io/badge/GitHub-Discussions-brightgreen)](https://github.com/KubeRiva/OMS/discussions)
-
----
-
-> **[Architecture](#1-architecture-overview)** · **[Discussions](https://github.com/KubeRiva/OMS/discussions)** · **[Roadmap](https://github.com/KubeRiva/OMS/projects)** · **[Contributing](CONTRIBUTING.md)**
-
----
-
-<!-- Add demo GIF here once recorded: order creation → AI sourcing decision → audit trail
-     Record with OBS/ScreenToGif: 30s loop, 1200px wide. Save to docs/demo.gif -->
-> **Demo GIF coming soon** — [track progress](https://github.com/KubeRiva/OMS/issues)
-
-## What is KubeRiva OMS?
-
-KubeRiva OMS is a **production-grade, async-first order management system** built for mid-market e-commerce teams that have outgrown Shopify's native fulfillment but can't justify pricing for any leading OMS provider.
-
-- **AI-native sourcing** — 7 strategies including `AI_ADAPTIVE` (an LLM scores fulfillment nodes per order using historical delivery rates, cost, and backorder data) with a full outcome-labeling feedback loop. Ships with Claude Haiku by default; [bring your own LLM](#74-bring-your-own-llm)
-- **Multi-tenant by default** — each organization gets its own isolated PostgreSQL data-plane database, provisioned automatically
-- **Connector ecosystem** — bidirectional Shopify and Amazon SP-API out of the box; pluggable framework for WooCommerce, Magento, FedEx, UPS, and more
-
----
-
-## Quick Start
-
-### Option A — pip / pipx (recommended)
-
-Requires: Python 3.12+ and Docker Desktop
-
-```bash
-# pip
-pip install kuberiva-oms
-
-# or pipx (isolated, no environment pollution)
-pipx install kuberiva-oms
-```
-
-```bash
-kuberiva start --seed    # starts all services + loads demo data
-```
-
-That's it. KubeRiva OMS pulls the Docker images and starts all 9 services automatically.
-
-| Command | Description |
-|---|---|
-| `kuberiva start` | Start all services |
-| `kuberiva start --seed` | Start + load demo data |
-| `kuberiva start --open` | Start + open dashboard in browser |
-| `kuberiva stop` | Stop all services |
-| `kuberiva restart` | Restart all services |
-| `kuberiva restart api` | Restart a single service |
-| `kuberiva status` | Show running services and URLs |
-| `kuberiva logs` | View logs (all services) |
-| `kuberiva logs api --follow` | Stream API logs |
-| `kuberiva seed` | Load demo data into a running instance |
-| `kuberiva update` | Pull latest images and restart |
-| `kuberiva --version` | Show installed version |
-
----
-
-### Option B — Docker Compose (manual)
-
-Requires: Docker Desktop 4.x (or Docker Engine + Compose v2)
-
-```bash
-git clone https://github.com/KubeRiva/OMS.git
-cd OMS
-cp .env.example .env
-docker compose up --build
-```
-
-```bash
-# Seed demo data
-docker compose exec api python scripts/seed.py
-```
-
----
-
-| Service | URL |
-|---|---|
-| Frontend dashboard | http://localhost:3001 |
-| API (OpenAPI docs) | http://localhost:8001/docs |
-| Celery Flower | http://localhost:5556 |
-
-Default login: `admin@example.com` / `admin123`
-
----
-
-## Features
-
-| | |
-|---|---|
-| **Order lifecycle** | 15-state machine: PENDING → CONFIRMED → SOURCING → SOURCED → PICKING → PACKING → READY_TO_SHIP → SHIPPED → DELIVERED + return/cancel paths |
-| **7 sourcing strategies** | DISTANCE_OPTIMAL, COST_OPTIMAL, STORE_NEAREST, INVENTORY_RESERVATION, LEAST_COST_SPLIT, AI_ADAPTIVE, AI_HYBRID |
-| **AI learning loop** | Hourly outcome labeling → nightly pattern discovery → daily A/B experiment evaluation → human-approved proposals |
-| **Multi-tenant** | Control-plane + per-tenant data-plane PostgreSQL; environment middleware resolves tenant from request header |
-| **Connectors** | Shopify (webhook + fulfillment push), Amazon SP-API (polling + fulfillment push) |
-| **Inventory** | Multi-node stock tracking, adjustments, transfers, reservations across warehouses / stores / dark stores |
-| **Webhooks** | HMAC-SHA256 signed, exponential backoff retry, delivery history |
-| **Search** | Elasticsearch full-text search across orders and products |
-| **Observability** | Prometheus metrics, structured JSON logs, Celery Flower, MongoDB audit trail for every order event |
-| **RBAC** | 3-tier: PLATFORM_OWNER > SUPERADMIN > USER |
-
----
-
-## Connector Ecosystem
-
-| Connector | Status | Direction |
-|---|---|---|
-| Shopify | ✅ Stable | Webhook inbound + fulfillment push |
-| Amazon SP-API | ✅ Stable | Polling inbound + fulfillment push |
-| WooCommerce | 🗺 Planned v0.2 | |
-| Magento | 🗺 Planned v0.2 | |
-| BigCommerce | 🗺 Planned | |
-| FedEx | 🗺 Planned v0.3 | Label generation + tracking |
-| UPS | 🗺 Planned v0.3 | Label generation + tracking |
-| DHL | 🗺 Planned v0.3 | Label generation + tracking |
-
-Want a connector that's not listed? [Open a connector request](https://github.com/KubeRiva/OMS/issues/new?template=connector_request.yml).
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| API | FastAPI 0.111, Python 3.12, Pydantic v2 |
-| Primary DB | PostgreSQL 16 (asyncpg) |
-| Document DB | MongoDB 7.0 (Motor async) |
-| Cache / Queue broker | Redis 7.2 (aioredis) |
-| Search | Elasticsearch 8.12 |
-| Task queue | Celery 5.4 — 7 queues |
-| Frontend | React 18, TypeScript, Vite, TailwindCSS, TanStack Query v5 |
-| AI | LLM-agnostic (ships with Claude Haiku `4-5` by default — [swappable](#74-bring-your-own-llm)) |
-| Containers | Docker Compose (9 services) |
-
----
-
-## Contributing
-
-We welcome PRs for bug fixes, new connectors, and features on the [roadmap](https://github.com/KubeRiva/OMS/projects).
-
-See **[CONTRIBUTING.md](CONTRIBUTING.md)** for setup instructions, style guide, and the connector build guide.
-
-Ask questions in **[GitHub Discussions](https://github.com/KubeRiva/OMS/discussions)** before starting a large PR.
-
----
-
-## License
-
-Apache 2.0 — see [LICENSE](LICENSE).
-
----
-
-## Full Documentation
-
-The sections below cover the complete system internals.
+A **production-grade**, fully async Order Management System built with Python 3.12, FastAPI, and a polyglot persistence layer (PostgreSQL + MongoDB + Redis + Elasticsearch).
 
 ---
 
@@ -183,11 +19,17 @@ The sections below cover the complete system internals.
    - [Inventory](#52-inventory-router)
    - [Fulfillment Nodes](#53-fulfillment-nodes-router)
    - [Sourcing Rules](#54-sourcing-rules-router)
-   - [Search](#55-search-router)
-   - [Analytics](#56-analytics-router)
-   - [Webhooks](#57-webhooks-router)
-   - [Connectors](#58-connectors-router)
-   - [AI Architect](#59-ai-architect-router)
+   - [Distribution Groups](#55-distribution-groups-router)
+   - [Search](#56-search-router)
+   - [Analytics](#57-analytics-router)
+   - [Webhooks](#58-webhooks-router)
+   - [Connectors](#59-connectors-router)
+   - [AI Architect](#510-ai-architect-router)
+   - [Brands](#511-brands-router)
+   - [Invoices](#512-invoices-router)
+   - [API Keys](#513-api-keys-router)
+   - [Brand Access](#514-brand-access-router)
+   - [Lifecycles](#515-lifecycles-router)
 6. [Sourcing Rules Engine](#6-sourcing-rules-engine)
 7. [AI-Native Architecture](#7-ai-native-architecture)
 8. [Fulfillment Pipeline](#8-fulfillment-pipeline)
@@ -197,165 +39,89 @@ The sections below cover the complete system internals.
 12. [Configuration](#12-configuration)
 13. [Running the System](#13-running-the-system)
 14. [End-to-End Order Flow](#14-end-to-end-order-flow)
+15. [B2B Commerce](#15-b2b-commerce)
+16. [Brand Entity](#16-brand-entity)
+17. [Distribution Groups](#17-distribution-groups)
+18. [Lifecycle Pipeline Types](#18-lifecycle-pipeline-types)
+19. [API Keys](#19-api-keys)
+20. [Brand-Scoped User Access](#20-brand-scoped-user-access)
+21. [SLA Breach Detection](#21-sla-breach-detection)
+22. [Worker Reliability](#22-worker-reliability)
+24. [Platform Owner Role](#24-platform-owner-role)
+25. [Node CRUD UI](#25-node-crud-ui)
+26. [End-to-End Test Suite](#26-end-to-end-test-suite)
 
 ---
 
 ## 1. Architecture Overview
 
-![KubeRiva OMS Enterprise Architecture](docs/architecture.png)
-
-### System Architecture
-
-```mermaid
-graph TB
-    subgraph clients[" Client Layer "]
-        WEB["Web / Mobile / POS"]
-        APIC["API Client"]
-        MKT["Marketplace"]
-    end
-
-    subgraph ext[" External Connectors "]
-        SHP["Shopify\nWebhook inbound · Fulfillment push"]
-        AMZ["Amazon SP-API\nPolling inbound · Fulfillment push"]
-    end
-
-    subgraph app[" FastAPI Application — Python 3.12 "]
-        MW["EnvironmentMiddleware\nResolves tenant from X-OMS-Environment header"]
-        RT["18+ Routers\n/orders · /inventory · /nodes · /sourcing-rules\n/connectors · /architect · /ai · /webhooks"]
-    end
-
-    subgraph db[" Persistence Layer "]
-        PG[("PostgreSQL 16\nper-tenant data plane\nOrders · Inventory · Nodes · Rules")]
-        MG[("MongoDB 7\nAudit events · AI patterns\nSourcing outcomes")]
-        RD[("Redis 7.2\nCache · Celery broker\nSession store")]
-        ES[("Elasticsearch 8.12\nFull-text order\n& product search")]
-    end
-
-    subgraph workers[" Celery Workers — 7 Queues "]
-        Q1["sourcing"]
-        Q2["fulfillment"]
-        Q3["carrier"]
-        Q4["notifications"]
-        Q5["webhooks"]
-        Q6["connectors"]
-        Q7["learning"]
-    end
-
-    clients -->|"HTTP / REST"| app
-    ext -->|"Webhook POST"| app
-    app --> PG & MG & RD & ES
-    app -->|"enqueue tasks"| RD
-    RD -->|"broker"| workers
-    workers --> PG & MG
-    Q6 --> ext
-    Q7 -->|"label · discover · propose"| MG
 ```
-
----
+┌─────────────────────────────────────────────────────────────────────┐
+│                          CLIENT LAYER                               │
+│   WEB  │  MOBILE  │  POS  │  API  │  MARKETPLACE                   │
+└──────────────────────────┬──────────────────────────────────────────┘
+                           │ HTTP/REST
+┌──────────────────────────▼──────────────────────────────────────────┐
+│                     FASTAPI APPLICATION                             │
+│  /orders  /inventory  /nodes  /sourcing-rules  /search  /analytics  │
+│  /webhooks  /connectors  /architect  /ai                            │
+└───┬────────────┬───────────────┬──────────────────┬─────────────────┘
+    │            │               │                  │
+    ▼            ▼               ▼                  ▼
+PostgreSQL    MongoDB         Redis           Elasticsearch
+(Orders/      (Event log/     (Cache/         (Full-text
+ Inventory/    Catalog/        Queues/          order and
+ Nodes/        Patterns/       Session)         product search)
+ Rules/        Outcomes)
+ Proposals)
+    │
+    ▼
+CELERY WORKERS (7 queues)
+  sourcing → fulfillment → carrier → notifications → webhooks → connectors → learning
+                                                                              ▲
+                                                                    AI Learning Loop
+                                                          (label outcomes · discover patterns
+                                                           evaluate experiments · propose rules)
+```
 
 ### AI-Native 5-Layer Architecture
 
-```mermaid
-graph TB
-    L5["Layer 5 — Continuous Learning Loop\nNightly pattern discovery · Hourly outcome labeling · Daily A/B evaluation"]
-    L4["Layer 4 — Meta-AI Self-Modification\nProposals to human approval to safe apply to rollback"]
-    L3["Layer 3 — AI Architect UI\nProposals · Patterns · Experiments · Performance dashboards"]
-    L2["Layer 2 — AI Sourcing Engine\nAI_ADAPTIVE: node scoring · confidence threshold · rule fallback"]
-    L1["Layer 1 — Intelligence Data Foundation\nOutcome tracking · Pattern storage · Feature vectors"]
-
-    L5 -->|"validated patterns"| L4
-    L4 -->|"applied rules activate"| L2
-    L3 -->|"surfaces insights from"| L1
-    L2 -->|"produces outcomes into"| L1
-    L1 -->|"cluster aggregation"| L5
-
-    style L5 fill:#1e3a5f,color:#fff,stroke:#4a90d9
-    style L4 fill:#1a4a2e,color:#fff,stroke:#4caf50
-    style L3 fill:#2d1b4e,color:#fff,stroke:#9c27b0
-    style L2 fill:#4a2800,color:#fff,stroke:#ff9800
-    style L1 fill:#3a1a1a,color:#fff,stroke:#f44336
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Layer 5: Continuous Learning Loop                              │
+│  (Nightly pattern discovery · Outcome labeling · A/B testing)  │
+├─────────────────────────────────────────────────────────────────┤
+│  Layer 4: Meta-AI Framework (Self-Modification)                 │
+│  (Natural language → proposals → human approval → safe apply)  │
+├─────────────────────────────────────────────────────────────────┤
+│  Layer 3: AI Architect UI                                       │
+│  (Proposals · Patterns · Experiments · Performance dashboards) │
+├─────────────────────────────────────────────────────────────────┤
+│  Layer 2: AI Sourcing Engine (AI_ADAPTIVE strategy)             │
+│  (KubeAI-scored nodes · confidence threshold · rule fallback)  │
+├─────────────────────────────────────────────────────────────────┤
+│  Layer 1: Intelligence Data Foundation                          │
+│  (Outcome tracking · Pattern storage · Feature extraction)     │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
----
+### Request lifecycle
 
-### AI Sourcing Decision Flow
-
-```mermaid
-flowchart TD
-    A([Order Received]) --> B[EnvironmentMiddleware resolves tenant]
-    B --> C{Active sourcing rules exist?}
-    C -->|No| DIST[DISTANCE_OPTIMAL fallback]
-    C -->|Yes| D[Evaluate rules in priority order]
-    D --> E{Rule matched?}
-    E -->|No| DIST
-    E -->|Yes| F{A/B experiment running?}
-    F -->|Yes| G{traffic split check}
-    G -->|strategy_b| STRAT_B[Strategy B]
-    G -->|strategy_a| STRAT_A[Strategy A]
-    F -->|No| STRAT_A
-    STRAT_A & STRAT_B --> H{Strategy type}
-    H -->|DISTANCE_OPTIMAL| SD[Haversine distance scoring]
-    H -->|COST_OPTIMAL| SC[Carrier cost scoring]
-    H -->|INVENTORY_RESERVATION| SI[Stock level scoring]
-    H -->|LEAST_COST_SPLIT| SS[Multi-node split scoring]
-    H -->|AI_ADAPTIVE| AI[AI Node Scoring\ndelivery · cost · backorder · return rates]
-    AI --> AIC{samples >= 10 and score >= 0.4?}
-    AIC -->|No| DIST
-    AIC -->|Yes| ALLOC
-    SD & SC & SI & SS & DIST --> ALLOC[FulfillmentAllocation created\nnode selected · inventory reserved]
-    ALLOC --> PICK[Celery: PICKING]
-    PICK --> PACK[Celery: PACKING]
-    PACK --> SHIP[Celery: READY_TO_SHIP]
-    SHIP --> PUSH[Connector push to Shopify or Amazon]
-    PUSH --> LABEL[Learning worker labels outcome]
-    LABEL --> PATTERN[(MongoDB pattern store)]
-```
-
----
-
-### Order Lifecycle
-
-```mermaid
-stateDiagram-v2
-    [*] --> PENDING
-    PENDING --> CONFIRMED : confirm
-    CONFIRMED --> SOURCING : source_order enqueued
-    SOURCING --> SOURCED : node allocated
-    SOURCING --> BACKORDERED : no stock available
-    BACKORDERED --> SOURCING : retry after 30 min
-    SOURCED --> PICKING : start_picking task
-    PICKING --> PACKING : complete_picking task
-    PACKING --> READY_TO_SHIP : complete_packing task
-    READY_TO_SHIP --> SHIPPED : carrier label booked
-    SHIPPED --> OUT_FOR_DELIVERY : tracking update
-    OUT_FOR_DELIVERY --> DELIVERED : delivery confirmed
-    DELIVERED --> RETURNED : return initiated
-    RETURNED --> [*]
-    PENDING --> CANCELLED : cancel
-    CONFIRMED --> CANCELLED : cancel
-    SOURCED --> CANCELLED : cancel
-    CANCELLED --> [*]
-    DELIVERED --> REFUNDED : refund issued
-    REFUNDED --> [*]
-```
-
----
-
-### Request Lifecycle
-
-1. Client POSTs to `POST /orders` — Pydantic v2 validates, written to **PostgreSQL**, indexed in **Elasticsearch**
-2. `order.created` event written to **MongoDB** audit log
-3. `source_order` task enqueued on **Redis**-backed `sourcing` Celery queue
-4. Sourcing engine evaluates rules → selects strategy → may invoke `AI_ADAPTIVE` node scoring
-5. `FulfillmentAllocation` created → pipeline flows: `sourcing → fulfillment → carrier → notifications → webhooks`
-6. `learning` worker labels delivery outcome → feeds pattern store → triggers nightly discovery
+1. Client POSTs an order to `POST /orders`
+2. FastAPI validates the request via Pydantic v2 schemas
+3. Order is written to **PostgreSQL** and indexed in **Elasticsearch**
+4. Order-created event is written to **MongoDB** audit log
+5. A `source_order` task is enqueued on the **Redis**-backed `sourcing` Celery queue
+6. Sourcing Engine evaluates active rules — may route via A/B experiment or `AI_ADAPTIVE` strategy
+7. Pipeline tasks flow: `sourcing → fulfillment (pick → pack) → carrier (label + ship) → notifications → webhooks`
+8. Delivery outcome is labeled by the `learning` worker and fed back into the pattern store
 
 ---
 
 ## 2. Directory Structure
 
 ```
-OMS/
+D:\OMS\
 ├── Dockerfile                      # Multi-stage Python 3.12 image
 ├── docker-compose.yml              # All 8 services
 ├── requirements.txt                # All Python dependencies
@@ -397,12 +163,18 @@ OMS/
 │   │   ├── inventory.py            # 8 endpoints — stock management + transfers
 │   │   ├── nodes.py                # 6 endpoints — node CRUD + capacity
 │   │   ├── sourcing_rules.py       # 7 endpoints — rule CRUD + manual evaluation
+│   │   ├── distribution_groups.py  # 8 endpoints — DG CRUD + member management
+│   │   ├── lifecycles.py           # 6 endpoints — pipeline lifecycle CRUD + resolve
+│   │   ├── api_keys.py             # 3 endpoints — create/list/revoke API keys
+│   │   ├── brand_access.py         # 3 endpoints — assign/list/remove brand roles
 │   │   ├── search.py               # 3 endpoints — order + product full-text search
 │   │   ├── analytics.py            # 3 endpoints — dashboard + volume + inventory summary
 │   │   ├── webhooks.py             # 8 endpoints — endpoint + event management
 │   │   ├── connectors.py           # 10 endpoints — CRUD + webhook receiver + event log
+│   │   ├── monitoring.py           # 12 endpoints — error events, issues, SLA summary
 │   │   └── architect.py            # 20+ endpoints — proposals, patterns, experiments,
-│   │                               #   node performance, AI sourcing comparison
+│   │                               #   node performance, AI sourcing comparison,
+│   │                               #   custom field definitions
 │   │
 │   ├── services/
 │   │   ├── sourcing_engine.py      # Intelligence core (see §6) + AI_ADAPTIVE + experiment routing
@@ -424,6 +196,7 @@ OMS/
 │       ├── notifications.py        # Email/SMS notification tasks
 │       ├── webhooks.py             # dispatch_webhook, retry_failed_webhooks
 │       ├── connectors.py           # sync_fulfillment_to_connector task
+│       ├── sla.py                  # check_sla_breaches, check_sla_breaches_fanout
 │       └── learning.py             # label_sourcing_outcomes, discover_patterns,
 │                                   #   update_node_performance, evaluate_ai_experiments
 │
@@ -447,7 +220,7 @@ OMS/
 | Cache / Queue | Redis 7.2 | Celery broker/backend, cache, rate-limiting |
 | Search | Elasticsearch 8.12 | Full-text order and product search |
 | Task queue | Celery 5.4 + Flower | Async pipeline workers, beat scheduler |
-| AI / LLM | LLM-agnostic — default: `claude-haiku-4-5-20251001` (Anthropic) | AI node scoring, NL → proposals |
+| AI / LLM | KubeAI claude-haiku-4-5-20251001 (Anthropic) | AI node scoring, NL → proposals |
 | Validation | Pydantic v2 | Request/response schemas, settings |
 | Containers | Docker Compose | All 8 services in one command |
 | HMAC signing | hashlib + hmac (stdlib) | Webhook payload integrity |
@@ -473,6 +246,19 @@ OMS/
 | `current_daily_orders` | INT | Reset to 0 at midnight by Celery beat |
 | `shipping_cost_multiplier` | FLOAT | Relative cost weight for sourcing |
 
+#### `brands`
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `slug` | VARCHAR(80) | Unique, URL-safe identifier e.g. `retailco` |
+| `name` | VARCHAR(200) | Display name |
+| `tenant_mode` | ENUM | `B2C_ONLY` / `B2B_ONLY` / `HYBRID` |
+| `description` | TEXT | Optional |
+| `is_active` | BOOLEAN | Inactive brands hidden from UI dropdowns |
+| `created_at / updated_at` | TIMESTAMPTZ | Auto-managed |
+
+A nullable `brand_id UUID FK → brands.id` column is added to: `orders`, `sourcing_rules`, `customer_accounts`, and `connectors`. `NULL brand_id` means unbranded / legacy data and is fully backward-compatible.
+
 #### `orders`
 | Column | Type | Description |
 |---|---|---|
@@ -485,6 +271,7 @@ OMS/
 | `shipping_latitude/longitude` | FLOAT | Customer location for sourcing |
 | `pickup_node_id` | UUID FK | For BOPIS/curbside orders |
 | `sourcing_rule_id` | UUID FK | Which rule was applied |
+| `brand_id` | UUID FK | Optional — links to `brands.id` |
 
 #### `order_items`
 Line items linked to an order. Tracks `quantity_fulfilled` as allocations are shipped.
@@ -614,6 +401,9 @@ Indexes: order_events is indexed on `(order_id, timestamp)` and `event_type`. pr
 | `oms:stats` | HASH | — | Aggregate counters |
 | `oms:active_strategies` | STRING | 1h | Cached strategy list |
 | `celery:*` | Various | — | Celery broker/result state |
+| `sla_breaches:{env}:{YYYY-MM-DD}` | STRING | 24h | Daily SLA breach counter per environment |
+| `picking_lock:{order_id}` | STRING | 10m | Idempotency lock for `start_picking` task |
+| `oms:env:{env_id}` | STRING | 60s | Cached environment resolution (EnvironmentMiddleware) |
 
 ### 4.4 Elasticsearch Indexes
 
@@ -627,7 +417,7 @@ Product catalog search. Fields: `sku` (keyword), `name` (text), `description` (t
 
 ## 5. API Reference
 
-All endpoints are documented at `http://localhost:8001/docs` (Swagger UI) and `http://localhost:8001/redoc`.
+All endpoints are documented at `http://localhost:8000/docs` (Swagger UI) and `http://localhost:8000/redoc`.
 
 ### 5.1 Orders Router (`/orders`)
 
@@ -707,7 +497,38 @@ All endpoints are documented at `http://localhost:8001/docs` (Swagger UI) and `h
 | `POST` | `/sourcing-rules/{rule_id}/toggle` | Enable/disable rule |
 | `POST` | `/sourcing-rules/evaluate` | Manually run sourcing for an order |
 
-### 5.5 Search Router (`/search`)
+### 5.5 Distribution Groups Router (`/distribution-groups`)
+
+Distribution groups are named pools of fulfillment nodes. A sourcing rule can target a group instead of individual node types, and members are served in priority order during split fulfillment.
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/distribution-groups/` | Authenticated | List groups (filter by `is_active`, `brand_id`, paginated) |
+| `POST` | `/distribution-groups/` | Superadmin | Create a group with optional initial members |
+| `GET` | `/distribution-groups/{dg_id}` | Authenticated | Get group details with members |
+| `PATCH` | `/distribution-groups/{dg_id}` | Superadmin | Update name, description, active state, or brand |
+| `DELETE` | `/distribution-groups/{dg_id}` | Superadmin | Delete a group (cascades members) |
+| `POST` | `/distribution-groups/{dg_id}/members` | Superadmin | Add a node to the group |
+| `PATCH` | `/distribution-groups/{dg_id}/members/{node_id}` | Superadmin | Update a member's priority |
+| `DELETE` | `/distribution-groups/{dg_id}/members/{node_id}` | Superadmin | Remove a node from the group |
+
+**Priority semantics:** `effective_priority = target_priority × 100 + member_priority`. Lower numbers are preferred first. The sourcing engine sorts members by this computed value when selecting nodes from a group.
+
+**Create example:**
+```json
+{
+  "name": "East Coast DCs",
+  "description": "Distribution centers serving the eastern seaboard",
+  "is_active": true,
+  "brand_id": null,
+  "members": [
+    { "node_id": "<dc-east-uuid>", "priority": 1 },
+    { "node_id": "<dc-mid-uuid>",  "priority": 2 }
+  ]
+}
+```
+
+### 5.6 Search Router (`/search`)
 
 | Method | Path | Description |
 |---|---|---|
@@ -717,7 +538,7 @@ All endpoints are documented at `http://localhost:8001/docs` (Swagger UI) and `h
 
 Supports: fuzzy matching, multi-field search, date/amount range filters, pagination, sort order.
 
-### 5.6 Analytics Router (`/analytics`)
+### 5.7 Analytics Router (`/analytics`)
 
 | Method | Path | Description |
 |---|---|---|
@@ -725,7 +546,7 @@ Supports: fuzzy matching, multi-field search, date/amount range filters, paginat
 | `GET` | `/analytics/orders/volume` | Daily order volume over N days |
 | `GET` | `/analytics/inventory/summary` | Aggregate inventory health metrics |
 
-### 5.7 Webhooks Router (`/webhooks`)
+### 5.8 Webhooks Router (`/webhooks`)
 
 | Method | Path | Description |
 |---|---|---|
@@ -738,7 +559,7 @@ Supports: fuzzy matching, multi-field search, date/amount range filters, paginat
 | `GET` | `/webhooks/events` | List delivery events |
 | `POST` | `/webhooks/events/{id}/retry` | Retry failed event |
 
-### 5.8 Connectors Router (`/connectors`)
+### 5.9 Connectors Router (`/connectors`)
 
 Superadmin-only CRUD for integration connectors (except the public webhook receiver).
 
@@ -757,7 +578,7 @@ Superadmin-only CRUD for integration connectors (except the public webhook recei
 
 **Sensitive config fields** (`access_token`, `webhook_secret`, `api_key`, etc.) are always masked as `***` in API responses.
 
-### 5.9 AI Architect Router (`/architect`)
+### 5.10 AI Architect Router (`/architect`)
 
 Superadmin-only. All endpoints require `requireSuperadmin` authentication.
 
@@ -789,6 +610,161 @@ Superadmin-only. All endpoints require `requireSuperadmin` authentication.
 | `POST` | `/architect/experiments/{id}/pause` | Pause a running experiment |
 | `POST` | `/architect/experiments/{id}/resume` | Resume a paused experiment |
 | `GET` | `/architect/experiments/{id}/results` | Live per-arm outcome aggregation |
+
+### 5.11 Brands Router (`/brands`)
+
+Superadmin-only. Manages logical brand identities within an environment.
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `POST` | `/brands/` | Superadmin | Create brand (409 on duplicate slug) |
+| `GET` | `/brands/` | Superadmin | List with `is_active`, `tenant_mode` filters; includes child counts |
+| `GET` | `/brands/{id}` | Superadmin | Single brand with order/rule/account counts |
+| `PATCH` | `/brands/{id}` | Superadmin | Update name/description/tenant_mode; slug immutable |
+| `DELETE` | `/brands/{id}` | Superadmin | 409 if linked records exist |
+| `POST` | `/brands/{id}/toggle` | Superadmin | Toggle is_active |
+
+### 5.12 Invoices Router (`/invoices`)
+
+Superadmin-only. Manages accounts-receivable invoices for B2B orders. All endpoints require a valid JWT and superadmin role.
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/invoices/` | List invoices with optional filters (`customer_account_id`, `status`, `page`, `page_size`) |
+| `GET` | `/invoices/account/{account_id}` | List invoices for a specific customer account (filterable by `status`) |
+| `GET` | `/invoices/{invoice_id}` | Get a single invoice with linked account and order |
+| `POST` | `/invoices/` | Manually create an invoice for a customer account |
+| `POST` | `/invoices/from-order/{order_id}` | Auto-create invoice from a delivered B2B order (idempotent — returns existing if already created) |
+| `PATCH` | `/invoices/{invoice_id}/status` | Update invoice status; setting `PAID` releases `credit_used` on the account |
+
+**Invoice statuses:** `DRAFT` → `SENT` → `PAID` (or `OVERDUE` / `VOID`)
+
+**Due date calculation:** Computed from `payment_terms` on the linked account — `NET30` adds 30 days, `NET60` adds 60 days, `NET90` adds 90 days, `PREPAID` / `COD` set `due_date` to the issue date.
+
+**Create invoice from order example:**
+```bash
+curl -X POST http://localhost:8000/invoices/from-order/{order_id} \
+  -H "Authorization: Bearer {token}"
+```
+
+**Update status to PAID (releases credit):**
+```bash
+curl -X PATCH http://localhost:8000/invoices/{invoice_id}/status \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{"status": "PAID"}'
+```
+
+**Invoice response example:**
+```json
+{
+  "id": "uuid",
+  "invoice_number": "INV-202605-A3F7C2",
+  "customer_account_id": "uuid-of-account",
+  "order_id": "uuid-of-order",
+  "status": "SENT",
+  "subtotal": 2499.50,
+  "tax_amount": 0.00,
+  "total_amount": 2499.50,
+  "currency": "USD",
+  "issued_date": "2026-05-08",
+  "due_date": "2026-06-07",
+  "payment_terms": "NET30",
+  "paid_date": null,
+  "notes": null
+}
+```
+
+### 5.13 API Keys Router (`/api-keys`)
+
+Superadmin-only. Provides programmatic access to the OMS API without user sessions. Keys are stored as SHA-256 hashes — the raw key is returned exactly once on creation.
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api-keys` | Create an API key — raw key returned once only |
+| `GET` | `/api-keys` | List all keys (prefix and metadata only, never the hash) |
+| `DELETE` | `/api-keys/{key_id}` | Revoke a key (sets `is_active=False`; row preserved for audit) |
+
+**Authentication with an API key:**
+```bash
+curl http://localhost:8000/orders/ \
+  -H "X-API-Key: kr_<your-key>"
+```
+
+**Available scopes:** `orders:read`, `orders:write`, `inventory:read`, `inventory:write`, `sourcing_rules:read`, `admin:read`
+
+**Create example:**
+```bash
+curl -X POST http://localhost:8000/api-keys \
+  -H "Authorization: Bearer {superadmin_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "CI/CD Pipeline",
+    "scopes": ["orders:read", "inventory:read"],
+    "expires_at": "2027-01-01T00:00:00Z"
+  }'
+```
+
+**Response (key shown once only):**
+```json
+{
+  "id": "uuid",
+  "name": "CI/CD Pipeline",
+  "key": "kr_AbCdEfGhIjKlMnOpQrStUvWxYz012345",
+  "prefix": "kr_AbCdEfGh",
+  "scopes": ["orders:read", "inventory:read"],
+  "expires_at": "2027-01-01T00:00:00Z",
+  "created_at": "2026-05-09T10:00:00Z"
+}
+```
+
+Subsequent `GET /api-keys` responses omit the raw key and return only `prefix`, `scopes`, `last_used_at`, and `is_active`.
+
+### 5.14 Brand Access Router (`/brand-access`)
+
+Superadmin-only. Assigns users to brands within an environment with a scoped role. Brand-scoped users can only see orders and inventory belonging to their assigned brand.
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/brand-access/` | List assignments (filter by `user_id`, `brand_id`, `environment_id`) |
+| `POST` | `/brand-access/` | Assign a user to a brand in an environment |
+| `DELETE` | `/brand-access/{assignment_id}` | Remove a brand role assignment |
+
+**Roles:** `VIEWER` (read-only), `OPERATOR` (read + fulfillment actions), `ADMIN` (full brand-scope access)
+
+Roles are case-insensitive on input. To change a user's role, delete the existing assignment and create a new one (returns 409 if the combination already exists).
+
+**Assign example:**
+```bash
+curl -X POST http://localhost:8000/brand-access/ \
+  -H "Authorization: Bearer {superadmin_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "<user-uuid>",
+    "brand_id": "<brand-uuid>",
+    "environment_id": "<env-uuid>",
+    "role": "OPERATOR"
+  }'
+```
+
+### 5.15 Lifecycles Router (`/lifecycles`)
+
+Manages order pipeline configurations. Each lifecycle defines the status sequence, allowed transitions, per-step SLA hours, and the scope it applies to.
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/lifecycles/` | List lifecycles (filter by `pipeline_type`, `order_type`, `brand_id`, `fulfillment_type`) |
+| `GET` | `/lifecycles/resolve` | Return the best-matching lifecycle for a given context (specificity scoring) |
+| `POST` | `/lifecycles/` | Create a lifecycle with steps |
+| `GET` | `/lifecycles/{lifecycle_id}` | Get lifecycle details with steps |
+| `PATCH` | `/lifecycles/{lifecycle_id}` | Update lifecycle or replace steps |
+| `DELETE` | `/lifecycles/{lifecycle_id}` | Delete a lifecycle |
+
+**Pipeline types:** `ORDER` (forward fulfillment), `RETURN` (reverse logistics)
+
+**Order types:** `RETAIL`, `B2B`, `WHOLESALE`
+
+The `/lifecycles/resolve` endpoint accepts `fulfillment_type`, `channel`, `pipeline_type`, `order_type`, and `brand_id` as query parameters and returns the lifecycle with the highest specificity score, along with a `matched_on` summary explaining which dimensions were matched.
 
 ---
 
@@ -851,11 +827,11 @@ Greedy algorithm that assigns each SKU to the cheapest eligible node:
 4. Enforces `max_split_nodes` limit
 
 #### `AI_ADAPTIVE`
-Uses an LLM (default: `claude-haiku-4-5-20251001`) to score candidate nodes based on historical patterns and rolling performance data. The LLM receives the order context (channel, region, amount, fulfillment type), the top-3 matching historical pattern clusters, 7-day node performance metrics, and a list of candidate nodes. It responds with a JSON array of `{node_id, score, reason}`.
+Uses KubeAI claude-haiku-4-5-20251001 to score candidate nodes based on historical patterns and rolling performance data. KubeAI receives the order context (channel, region, amount, fulfillment type), the top-3 matching historical pattern clusters, 7-day node performance metrics, and a list of candidate nodes. It responds with a JSON array of `{node_id, score, reason}`.
 
 **Fallback to `DISTANCE_OPTIMAL` when:**
 - Best matching pattern has < 10 samples
-- LLM API call fails or returns invalid JSON
+- KubeAI API call fails or returns invalid JSON
 - Maximum AI score across all candidates < 0.4
 
 **Final score blend:** `0.6 × ai_score + 0.4 × rule_score`
@@ -877,6 +853,17 @@ Identical to `AI_ADAPTIVE` but uses the blended `rule_score` more aggressively. 
 | `NOT_IN` | `channel NOT IN [POS]` |
 | `CONTAINS` | `customer_email CONTAINS example.com` |
 | `STARTS_WITH` | `shipping_state STARTS_WITH N` |
+
+### 6.5 New Condition Fields (this sprint)
+
+| Field | Type | Notes |
+|---|---|---|
+| `has_sku` | string | Evaluates `true` if any order line item matches this SKU value |
+| `max_item_weight_lbs` | float | Maximum weight of any single item in the order |
+| `brand_id` | UUID string | Matches orders belonging to a specific brand |
+| `brand_slug` | string | Human-readable brand identifier (e.g. `retailco`) |
+
+The sourcing engine also applies a SQL-level `brand_id` filter when selecting rules: rules with a non-null `brand_id` are only evaluated for orders whose `brand_id` matches, eliminating unnecessary condition checks at the application layer.
 
 ### 6.4 Haversine Distance Formula
 
@@ -913,8 +900,8 @@ Every time an order is sourced, the `sourcing` Celery worker writes a `sourcing_
 
 When an order reaches `DELIVERED`, the `label_sourcing_outcomes` task (runs hourly) computes an `outcome_score` from actual delivery time, cost variance, backorder flag, and return flag. This creates a labeled training example.
 
-**Cluster key** = `channel|region|amount_bucket|fulfillment_type`
-Example: `WEB|NY|100-250|SHIP_TO_HOME`
+**Cluster key** = `brand_slug|channel|region|amount_bucket|fulfillment_type` (brand_slug defaults to `"default"` for unbranded orders)
+Example: `retailco|WEB|NY|100-250|SHIP_TO_HOME`
 
 ### 7.3 AI Sourcing (AI_ADAPTIVE)
 
@@ -923,32 +910,12 @@ Example: `WEB|NY|100-250|SHIP_TO_HOME`
 1. Extracts order features and computes the cluster key
 2. Finds the top-3 matching `sourcing_patterns` from MongoDB
 3. Loads rolling 7-day `node_performance_metrics` for each candidate
-4. Sends a structured prompt to the configured LLM with order context + patterns + node metrics
+4. Sends a structured prompt to KubeAI with order context + patterns + node metrics
 5. Parses the JSON response: `[{node_id, score, reason}]`
 6. Blends AI scores with rule-based scores: `0.6 × ai + 0.4 × rule`
 7. Falls back to `DISTANCE_OPTIMAL` on any error or low-confidence result
 
-### 7.4 Bring Your Own LLM
-
-KubeRiva OMS ships with **Anthropic Claude** as the default LLM provider. You are free to swap in any LLM that fits your enterprise agreements or infrastructure constraints. The LLM is used in three places:
-
-| File | Purpose | Default model |
-|---|---|---|
-| `app/services/ai_sourcing.py` | `AI_ADAPTIVE` node scoring (structured JSON output) | `claude-haiku-4-5-20251001` |
-| `app/routers/ai.py` | AI Assistant chat interface (streaming) | `claude-sonnet-4-6` |
-| `app/routers/ops.py` | Ops assistant / natural-language commands (streaming) | `claude-haiku-4-5-20251001` |
-
-**To swap the LLM:**
-
-1. Replace the `anthropic.AsyncAnthropic` client instantiation in each file above with your provider's SDK or an OpenAI-compatible client pointed at your endpoint.
-2. Update `ANTHROPIC_API_KEY` in your `.env` to whatever key variable your provider requires.
-3. Adjust the `model=` string to match your provider's model identifier.
-
-**Community tip:** [LiteLLM](https://github.com/BerriAI/litellm) provides a single unified interface to Anthropic, OpenAI, Azure, Ollama, vLLM, Bedrock, Groq, and 100+ other providers. Adding it lets you switch providers by changing a single env var without touching application code. A PR wiring LiteLLM into the three call sites above would be a welcome community contribution.
-
-> **Note on structured output:** `AI_ADAPTIVE` node scoring expects a JSON array response. Smaller or quantized models may not reliably follow this schema. The existing fallback to `DISTANCE_OPTIMAL` handles this gracefully — a bad response never crashes the routing path.
-
-### 7.5 Pattern Discovery
+### 7.4 Pattern Discovery
 
 The `discover_patterns` Celery task runs nightly at 02:00 UTC via `PatternDiscoveryService`:
 
@@ -960,7 +927,7 @@ The `discover_patterns` Celery task runs nightly at 02:00 UTC via `PatternDiscov
    - ≥ 10 AI_ADAPTIVE samples
    - AI outperforms baseline by ≥ 10%
 
-### 7.6 A/B Experiments
+### 7.5 A/B Experiments
 
 Admins create experiments via the Architect UI or API. The sourcing engine checks for matching running experiments before executing any strategy:
 
@@ -974,7 +941,7 @@ else:
 
 The `evaluate_ai_experiments` task (runs daily at 03:00 UTC) computes per-arm outcome scores and declares a winner when both arms have ≥ 50 samples and the score difference ≥ 0.05.
 
-### 7.7 Proposal Lifecycle
+### 7.6 Proposal Lifecycle
 
 ```
 PENDING
@@ -998,7 +965,7 @@ APPLIED ──────────────────────► (a
 | `ui_widget` | `INSERT` into `ui_widgets` | Soft-delete (`is_active=False`) |
 | `sourcing_experiment` | `INSERT` into `ai_experiments` | `UPDATE status='paused'` |
 
-### 7.8 Architect UI
+### 7.7 Architect UI
 
 The `/architect` page (superadmin only) has four tabs:
 
@@ -1062,7 +1029,7 @@ SOURCING ──► SOURCED
 
 ## 9. Celery Workers
 
-### Named Queues
+### 7 Named Queues
 
 | Queue | Worker | Tasks |
 |---|---|---|
@@ -1087,6 +1054,7 @@ SOURCING ──► SOURCED
 | `update_node_performance` | Every 4 hours | Compute rolling 7d/30d stats per node from labeled outcomes |
 | `discover_patterns` | Daily 02:00 UTC | Aggregate patterns, compare strategies, auto-generate AIProposals |
 | `evaluate_ai_experiments` | Daily 03:00 UTC | Compute per-arm outcomes; declare winner when ≥50 samples per arm + score diff ≥0.05 |
+| `check_sla_breaches_fanout` | Every 15 minutes | Fan out `check_sla_breaches` to each active environment; increments `sla_breaches:{env}:{date}` Redis counter |
 
 ### Start workers
 
@@ -1100,7 +1068,7 @@ celery -A app.workers.celery_app worker \
 ### Monitor with Flower
 
 ```
-http://localhost:5556
+http://localhost:5555
 ```
 
 ---
@@ -1198,7 +1166,7 @@ External Platform ← buyer notified with tracking info
 1. **Create a connector** via the Admin UI (`/connectors`) or API:
 
 ```bash
-curl -X POST http://localhost:8001/connectors/ \
+curl -X POST http://localhost:8000/connectors/ \
   -H "Authorization: Bearer {token}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -1214,7 +1182,7 @@ curl -X POST http://localhost:8001/connectors/ \
   }'
 ```
 
-2. **Copy the webhook URL** from the response: `http://localhost:8001/connectors/{id}/webhook`
+2. **Copy the webhook URL** from the response: `http://localhost:8000/connectors/{id}/webhook`
 
 3. **Register in Shopify Admin** → Settings → Notifications → Webhooks:
    - Topic: `Orders / Creation`
@@ -1254,7 +1222,7 @@ Amazon uses polling rather than webhooks. The beat task `poll_amazon_orders` run
 1. **Create a connector** via the Admin UI (`/connectors`) or API:
 
 ```bash
-curl -X POST http://localhost:8001/connectors/ \
+curl -X POST http://localhost:8000/connectors/ \
   -H "Authorization: Bearer {token}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -1368,7 +1336,11 @@ All configuration is via environment variables (`.env` file for local dev):
 | `WEBHOOK_MAX_RETRIES` | `3` | Max retry attempts |
 | `DEFAULT_SOURCING_STRATEGY` | `DISTANCE_OPTIMAL` | Fallback strategy when no rule matches |
 | `MAX_SPLIT_NODES` | `3` | Global max nodes for split fulfillment |
-| `ANTHROPIC_API_KEY` | — | Required when using the default Anthropic provider for `AI_ADAPTIVE` / `AI_HYBRID` strategies and NL commands. Replace with your provider's key if [swapping the LLM](#74-bring-your-own-llm). |
+| `ANTHROPIC_API_KEY` | — | Required for `AI_ADAPTIVE` / `AI_HYBRID` strategies and NL commands |
+| `SHOPIFY_API_KEY` | — | Client ID from the Shopify Partner Dashboard app settings |
+| `SHOPIFY_API_SECRET` | — | Client secret — used for HMAC validation on all Shopify webhooks and OAuth callbacks |
+| `SHOPIFY_APP_HOST` | — | Public HTTPS base URL for the app (e.g. `https://oms.example.com`); used to build OAuth redirect and GDPR callback URLs |
+| `FERNET_KEY` | — | 32-byte Fernet key (base64-encoded) used to encrypt Shopify merchant access tokens at rest |
 
 ---
 
@@ -1381,22 +1353,19 @@ All configuration is via environment variables (`.env` file for local dev):
 ### Start all services
 
 ```bash
+cd D:\OMS
 docker compose up -d --build
 ```
 
 Services started:
-
-| Container | Exposed port |
-|---|---|
-| PostgreSQL | 5433 |
-| MongoDB | 27018 |
-| Redis | 6380 |
-| Elasticsearch | 9200 (internal) |
-| API | 8001 |
-| Celery worker | background |
-| Celery beat | background |
-| Flower | 5556 |
-| Frontend | 3001 |
+- `oms_postgres` → port 5432
+- `oms_mongodb` → port 27017
+- `oms_redis` → port 6379
+- `oms_elasticsearch` → port 9200
+- `oms_api` → port 8000
+- `oms_celery_worker` → background
+- `oms_celery_beat` → background
+- `oms_flower` → port 5555
 
 ### Seed all databases
 
@@ -1404,24 +1373,25 @@ Services started:
 docker compose exec api python scripts/seed.py
 ```
 
-Seeds:
-- **PostgreSQL**: 8 fulfillment nodes, 64 inventory items, 5 sourcing rules, 1 webhook endpoint
-- **MongoDB**: 8 product catalog documents, 3 sample order events
+Seeds (in order):
+- **PostgreSQL (retail)**: 8 fulfillment nodes, 64 inventory items (8 SKUs × 8 nodes), 5 sourcing rules, 3 sample retail orders, 1 webhook endpoint
+- **PostgreSQL (B2B)**: 4 customer accounts (`B2B-001` … `B2B-004`), 3 B2B sourcing rules, 4 B2B sample orders
+- **MongoDB**: 8 product catalog documents, 7 order events (3 retail + 4 B2B, including approval and sourcing events)
 - **Redis**: version, stats, and cache warmup keys
-- **Elasticsearch**: 8 product documents, 3 sample order documents
+- **Elasticsearch**: 8 product documents, 3 sample retail order documents
 
 ### API Documentation
 
-- Swagger UI: http://localhost:8001/docs
-- ReDoc: http://localhost:8001/redoc
-- OpenAPI JSON: http://localhost:8001/openapi.json
-- Health check: http://localhost:8001/health
-- Flower (Celery): http://localhost:5556
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
+- OpenAPI JSON: http://localhost:8000/openapi.json
+- Health check: http://localhost:8000/health
+- Flower (Celery): http://localhost:5555
 
 ### Run tests
 
 ```bash
-PYTHONPATH=. pytest tests/ -v
+PYTHONPATH=D:\OMS python -m pytest tests/test_imports.py -v
 ```
 
 ---
@@ -1431,7 +1401,7 @@ PYTHONPATH=. pytest tests/ -v
 ### Step 1: Create an order
 
 ```bash
-curl -X POST http://localhost:8001/orders/ \
+curl -X POST http://localhost:8000/orders/ \
   -H "Content-Type: application/json" \
   -d '{
     "channel": "WEB",
@@ -1511,7 +1481,7 @@ The `carrier` worker:
 ### Step 6: Verify in search
 
 ```bash
-curl -X POST http://localhost:8001/search/orders \
+curl -X POST http://localhost:8000/search/orders \
   -H "Content-Type: application/json" \
   -d '{"query": "John Doe", "status": "DELIVERED"}'
 ```
@@ -1519,7 +1489,7 @@ curl -X POST http://localhost:8001/search/orders \
 ### Step 7: Check audit trail
 
 ```bash
-curl http://localhost:8001/orders/{order_id}/events
+curl http://localhost:8000/orders/{order_id}/events
 ```
 
 Returns chronological MongoDB events: `order.created → order.sourced → order.shipped → order.delivered`
@@ -1527,7 +1497,7 @@ Returns chronological MongoDB events: `order.created → order.sourced → order
 ### Step 8: Analytics
 
 ```bash
-curl "http://localhost:8001/analytics/dashboard?from_date=2024-01-01"
+curl "http://localhost:8000/analytics/dashboard?from_date=2024-01-01"
 ```
 
 Returns: total orders, revenue, breakdown by channel/fulfillment type, top nodes, inventory alerts.
@@ -1549,7 +1519,7 @@ Returns: total orders, revenue, breakdown by channel/fulfillment type, top nodes
 | STR-MIA-01 | Store | Miami Beach FL | ✓ | ✓ | ✓ | — | 150/day |
 | DARK-SF-01 | Dark | San Francisco CA | ✓ | — | — | ✓ | 500/day |
 
-### Sourcing Rules (5 active)
+### Sourcing Rules — Retail (5 active)
 
 | Priority | Name | Strategy | Conditions |
 |---|---|---|---|
@@ -1558,6 +1528,32 @@ Returns: total orders, revenue, breakdown by channel/fulfillment type, top nodes
 | 30 | High-Value Orders | `COST_OPTIMAL` | `total_amount > 200` |
 | 40 | Marketplace | `LEAST_COST_SPLIT` | `channel = MARKETPLACE` |
 | 100 | Default | `DISTANCE_OPTIMAL` | *(catch-all — no conditions)* |
+
+### Sourcing Rules — B2B (3 active)
+
+| Priority | Name | Strategy | Conditions | Nodes |
+|---|---|---|---|---|
+| 12 | B2B High-Value (>$5K) — Nearest DC | `DISTANCE_OPTIMAL` | `order_type = B2B AND total_amount > 5000` | DC only, max 1 |
+| 15 | B2B — Distribution Centers Only | `COST_OPTIMAL` | `order_type = B2B` | DC only, max 2 |
+| 18 | NET60/NET90 — Least Cost Split | `LEAST_COST_SPLIT` | `payment_terms IN [NET60, NET90]` | Any, max 3 |
+
+### B2B Customer Accounts (4)
+
+| Account # | Company | Type | Tier | Terms | Credit Limit | Approval Threshold |
+|---|---|---|---|---|---|---|
+| B2B-001 | Acme Distribution Inc. (Edison NJ) | ACTIVE | GOLD | NET30 | $100,000 | $50,000 |
+| B2B-002 | TechResell Partners LLC (SF CA) — tax-exempt | ACTIVE | SILVER | NET60 | $50,000 | $25,000 |
+| B2B-003 | MegaCorp Supply Co. (Chicago IL) — tax-exempt | ACTIVE | PLATINUM | NET90 | $500,000 | None (never gated) |
+| B2B-004 | StartupGadgets Inc. (Palo Alto CA) | PROSPECT | STANDARD | PREPAID | $0 | $500 |
+
+### B2B Sample Orders (4 scenarios)
+
+| Order Suffix | Account | Total | Approval Status | Status | Scenario |
+|---|---|---|---|---|---|
+| `-B2B001` | Acme (B2B-001) | $2,499.50 | NOT_REQUIRED | PENDING | Below threshold — auto-routes |
+| `-B2B002` | TechResell (B2B-002) | $30,999.75 | PENDING | PENDING | Above $25K — held for approval |
+| `-B2B003` | MegaCorp (B2B-003) | $8,499.60 | NOT_REQUIRED | SOURCED | No approval gate — already sourced |
+| `-B2B004` | StartupGadgets (B2B-004) | $937.03 | NOT_REQUIRED | PENDING | PREPAID prospect — payment captured upfront |
 
 ### Product SKUs (8 SKUs × 8 nodes = 64 inventory records)
 
@@ -1571,3 +1567,481 @@ Returns: total orders, revenue, breakdown by channel/fulfillment type, top nodes
 | SKU-GIZMO-2 | Gizmo 2 Deluxe | $39.99 |
 | SKU-TOOL-Z | Power Tool Z | $149.99 |
 | SKU-ACCESSORY-1 | Accessory Pack 1 | $9.99 |
+
+---
+
+## 15. B2B Commerce
+
+KubeRiva OMS supports a full B2B (Business-to-Business) commerce workflow alongside the standard retail order management flow.
+
+### Key files
+
+| File | Purpose |
+|---|---|
+| `app/models/postgres/b2b_models.py` | `CustomerAccount` model, `AccountType` enum, `PricingTier` enum |
+| `app/routers/b2b.py` | Account CRUD, credit adjustment, approval endpoints |
+| `app/services/sourcing_engine.py` | B2B condition fields wired into `field_map` (`order_type`, `payment_terms`, `approval_status`, `po_number`) |
+| `app/routers/sourcing_rules.py` | `/metadata` endpoint exposes B2B condition fields to the UI |
+| `frontend/src/pages/CustomerAccounts.tsx` | Account management UI (superadmin) |
+| `scripts/seed.py` | `seed_b2b()` — 4 accounts, 3 rules, 4 orders |
+
+### Data model enums
+
+**`AccountType`**: `PROSPECT` · `ACTIVE` · `INACTIVE` · `ON_HOLD`
+
+**`PricingTier`**: `STANDARD` · `BRONZE` · `SILVER` · `GOLD` · `PLATINUM`
+
+**`payment_terms`** (on both account and order): `PREPAID` · `NET15` · `NET30` · `NET60` · `NET90` · `COD`
+
+**`approval_status`** (on order): `NOT_REQUIRED` · `PENDING` · `APPROVED` · `REJECTED`
+
+### B2B order fields (on the `orders` table)
+
+| Field | Type | Description |
+|---|---|---|
+| `order_type` | VARCHAR | `RETAIL` (default) or `B2B` |
+| `customer_account_id` | UUID FK | Links to `customer_accounts.id` |
+| `po_number` | VARCHAR | Buyer-supplied purchase order reference |
+| `payment_terms` | VARCHAR | Overrides account default for this order |
+| `approval_status` | VARCHAR | Approval gate state |
+| `billing_name` / `billing_address*` | VARCHAR | Separate billing address |
+
+### Approval gate logic
+
+When a B2B order is created, the API checks:
+
+1. `account.approval_threshold IS NULL` → `approval_status = NOT_REQUIRED` (order proceeds directly to sourcing)
+2. `order.total_amount <= account.approval_threshold` → `approval_status = NOT_REQUIRED`
+3. `order.total_amount > account.approval_threshold` → `approval_status = PENDING` (order held; sourcing does not run until approved)
+
+Approve via `POST /b2b/orders/{order_id}/approve`. Reject via `POST /b2b/orders/{order_id}/reject`.
+
+### Sourcing engine B2B integration
+
+B2B fields are available as condition fields in sourcing rules. The sourcing engine's `_evaluate_condition()` method maps these with safe defaults so retail orders (which have no B2B columns set) still evaluate correctly:
+
+```python
+field_map = {
+    ...
+    "order_type":   getattr(order, "order_type", "RETAIL") or "RETAIL",
+    "payment_terms": getattr(order, "payment_terms", "PREPAID") or "PREPAID",
+    "approval_status": getattr(order, "approval_status", "NOT_REQUIRED") or "NOT_REQUIRED",
+    "po_number":    getattr(order, "po_number", None) or "",
+    "customer_account_id": str(order.customer_account_id) if getattr(order, "customer_account_id", None) else "",
+}
+```
+
+### B2B phase status
+
+| Phase | Feature | Status |
+|---|---|---|
+| Foundation | Customer account CRUD | ✅ Built |
+| Foundation | Approval gate on order create | ✅ Built |
+| Foundation | Approve / reject endpoints | ✅ Built |
+| Foundation | B2B sourcing rule conditions in engine | ✅ Built |
+| Foundation | B2B condition fields in sourcing rules UI | ✅ Built |
+| Foundation | B2B-specific sourcing rules (seed) | ✅ 3 rules seeded |
+| Foundation | B2B order channel (`B2B`, `EDI`, `WHOLESALE`) | ✅ Added to `OrderChannel` enum |
+| **Phase 1** | Credit enforcement at order create — 422 if `credit_used + total > credit_limit`; `credit_used` incremented on create, decremented on cancel | ✅ Complete |
+| **Phase 2** | Pricing tier discounts at order create — STANDARD (0%), SILVER (5%), GOLD (10%), PLATINUM (15%); `pricing_tier_applied` stored in order metadata | ✅ Complete |
+| **Phase 3** | Approval workflow — orders above `account.approval_threshold` set to `approval_status = PENDING`; `POST /orders/{id}/approve` and `/reject` endpoints; Celery notification task fires on PENDING | ✅ Complete |
+| **Phase 4** | Invoicing — `invoices` table + full router; auto-create from delivered B2B order (idempotent); PAID status releases `credit_used`; due date computed from payment terms | ✅ Complete |
+| **Phase 5** | B2B analytics — `B2BAnalytics.tsx` page with 4 KPI cards, revenue-by-account table, invoice status breakdown, approval funnel; `Invoices.tsx` management page | ✅ Complete |
+| **Phase 6** | EDI connector (X12 850/856) | 🔲 Deferred — next release |
+
+---
+
+## 16. Brand Entity
+
+A Brand is a logical business identity within an Environment. Multiple brands share fulfillment nodes and inventory but maintain isolated sourcing rules, customer accounts, and connectors.
+
+### Key files
+
+| File | Purpose |
+|------|---------|
+| `app/models/postgres/brand_models.py` | Brand ORM + BrandTenantMode enum |
+| `app/schemas/brands.py` | BrandCreate, BrandUpdate, BrandResponse |
+| `app/routers/brands.py` | CRUD + toggle at `/brands/` |
+| `frontend/src/pages/Brands.tsx` | Admin management UI |
+
+### Tenant modes
+
+| Mode | Description |
+|------|-------------|
+| `B2C_ONLY` | Retail/direct-to-consumer only |
+| `B2B_ONLY` | Wholesale/contract only |
+| `HYBRID` | Both B2B and B2C (default for new brands) |
+
+### Seeded brands
+
+| Slug | Name | Mode |
+|------|------|------|
+| `retailco` | RetailCo | B2C_ONLY |
+| `wholesaleco` | WholesaleCo | B2B_ONLY |
+
+### Sourcing engine
+
+`brand_id` and `brand_slug` are available as condition fields in sourcing rules. Cluster key format: `brand_slug|channel|region|amount_bucket|fulfillment_type` (unbranded orders use `"default"` as the brand slug prefix).
+
+### Connector auto-stamping
+
+Shopify and Amazon connectors with a `brand_id` configured automatically stamp that brand on all inbound orders via `normalize_order()`. No manual tagging is required at the order level.
+
+---
+
+## 17. Distribution Groups
+
+A Distribution Group is a named pool of fulfillment nodes that can be referenced by sourcing rules. This lets you define logical groupings — "East Coast DCs", "Same-Day Stores NYC" — once and reuse them across multiple rules without repeating node type filters.
+
+### Key files
+
+| File | Purpose |
+|------|---------|
+| `app/models/postgres/sourcing_rule_models.py` | `DistributionGroup`, `DistributionGroupMember` ORM models |
+| `app/schemas/sourcing_rules.py` | `DistributionGroupCreate/Update/Response`, `DGMemberCreate/Response` |
+| `app/routers/distribution_groups.py` | CRUD + member management at `/distribution-groups/` |
+| `frontend/src/pages/SourcingRules.tsx` | Group picker in sourcing rule editor |
+
+### Priority formula
+
+Each group member has an integer `priority` (lower = preferred). The sourcing engine computes:
+
+```
+effective_priority = target_priority × 100 + member_priority
+```
+
+Where `target_priority` comes from the sourcing rule referencing the group. This ensures rule-level ordering is always respected first, with the group's internal ordering as a tiebreaker.
+
+### Data model
+
+#### `distribution_groups`
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | UUID PK | Group identifier |
+| `name` | VARCHAR(200) | Display name |
+| `description` | TEXT | Optional description |
+| `is_active` | BOOLEAN | Inactive groups are excluded from sourcing |
+| `brand_id` | UUID FK (nullable) | Optional brand scope |
+
+#### `distribution_group_members`
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | UUID PK | Member row identifier |
+| `group_id` | UUID FK | Parent distribution group |
+| `node_id` | UUID FK | Fulfillment node |
+| `priority` | INT | Intra-group ordering (lower = preferred) |
+
+---
+
+## 18. Lifecycle Pipeline Types
+
+Lifecycles now support a `pipeline_type` dimension that controls which order flow the lifecycle governs. This enables distinct status sequences for forward fulfillment and return processing on the same OMS instance.
+
+### Pipeline types
+
+| `pipeline_type` | Applies to | Typical status sequence |
+|---|---|---|
+| `ORDER` | New order fulfillment (default) | `PENDING → CONFIRMED → SOURCED → PICKING → PACKING → READY_TO_SHIP → SHIPPED → DELIVERED` |
+| `RETURN` | Reverse logistics | `RETURN_REQUESTED → RETURN_APPROVED → IN_TRANSIT_BACK → RECEIVED → INSPECTED → REFUNDED` |
+
+### Scoping dimensions
+
+A lifecycle can be scoped along four independent axes. The `/lifecycles/resolve` endpoint selects the best match by counting how many axes are matched explicitly:
+
+| Axis | Column | Fallback |
+|---|---|---|
+| Pipeline type | `pipeline_type` | Matches any |
+| Order type | `order_type` | `RETAIL`, `B2B`, `WHOLESALE` — defaults to RETAIL |
+| Brand | `brand_id` | NULL = applies to all brands |
+| Fulfillment type | `fulfillment_types` (array) | Empty array = applies to all fulfillment types |
+
+More specific lifecycles always win over more general ones. A brand-specific + B2B lifecycle beats a generic ORDER lifecycle for a B2B order belonging to that brand.
+
+### SLA configuration
+
+Each `LifecycleStep` row can carry an `sla_hours` value. The `check_sla_breaches` Celery task (runs every 15 minutes) scans in-flight orders and emits an `order.sla_breach` audit event when any step's elapsed time exceeds its configured SLA.
+
+---
+
+## 19. API Keys
+
+API keys provide machine-to-machine access to the OMS API without a user login session. They are appropriate for CI/CD pipelines, external integrations, and server-side scripts.
+
+### Security model
+
+- Keys are stored as **SHA-256 hashes only** — the database never holds the raw key
+- The raw key (format: `kr_<43 url-safe chars>`) is returned exactly once in the creation response
+- Keys carry an explicit scope list; requests are rejected if the required scope is not present
+- Revoked keys (`is_active=False`) are retained in the database for audit purposes
+- Keys support an optional `expires_at` timestamp
+
+### Key format
+
+```
+kr_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789ABC
+└──┘└────────────────────────────────────┘
+prefix (12 chars, stored)   random URL-safe bytes (43 chars, hashed)
+```
+
+The 12-character prefix (`kr_AbCdEfGh`) is stored in plaintext so you can identify a key in the list without knowing the full value.
+
+### Using a key
+
+Pass the raw key in the `X-API-Key` request header:
+
+```bash
+curl http://localhost:8000/orders/ \
+  -H "X-API-Key: kr_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789ABC"
+```
+
+### Scope reference
+
+| Scope | Permits |
+|---|---|
+| `orders:read` | `GET /orders/*` |
+| `orders:write` | `POST /orders/`, `PATCH /orders/*` |
+| `inventory:read` | `GET /inventory/*` |
+| `inventory:write` | `POST /inventory/*`, `PATCH /inventory/*` |
+| `sourcing_rules:read` | `GET /sourcing-rules/*` |
+| `admin:read` | `GET /analytics/*`, `GET /monitoring/*` |
+
+---
+
+## 20. Brand-Scoped User Access
+
+Platform administrators can assign users to specific brands within an environment, restricting their view to only the orders and inventory belonging to that brand.
+
+### Role hierarchy
+
+| Role | Read | Fulfillment actions | Configuration |
+|---|---|---|---|
+| `VIEWER` | Brand's orders + inventory | — | — |
+| `OPERATOR` | Brand's orders + inventory | Update status, adjustments | — |
+| `ADMIN` | Brand's orders + inventory | All operations | Brand-scoped config |
+
+### Access enforcement
+
+When a user has a `UserBrandRole` record for the current environment, every order list query is automatically filtered to `WHERE brand_id = <assigned_brand_id>`. Superadmins bypass brand filtering entirely.
+
+### Key files
+
+| File | Purpose |
+|------|---------|
+| `app/models/postgres/user_brand_role_models.py` | `UserBrandRole` ORM model |
+| `app/routers/brand_access.py` | Assignment CRUD at `/brand-access/` |
+| `app/dependencies/tenant.py` | Brand filter injection into request context |
+
+---
+
+## 21. SLA Breach Detection
+
+The SLA detection system monitors in-flight orders against per-step SLA targets defined in their assigned lifecycle.
+
+### How it works
+
+1. The `check_sla_breaches_fanout` Celery beat task fires every **15 minutes**
+2. It fans out to `check_sla_breaches` for each active environment
+3. For each order in a non-terminal status with a `lifecycle_id` set, the task checks whether `now - updated_at > sla_hours` for the current lifecycle step
+4. On breach: emits an `order.sla_breach` MongoDB audit event and increments a daily Redis counter
+
+### Redis counter
+
+```
+Key:   sla_breaches:{environment_id}:{YYYY-MM-DD}
+Type:  STRING (integer)
+TTL:   86400 seconds (24 hours)
+```
+
+### API endpoint
+
+```
+GET /monitoring/sla-summary
+```
+
+Returns:
+```json
+{
+  "date": "2026-05-09",
+  "environment_id": "default",
+  "sla_breaches_today": 3
+}
+```
+
+Requires superadmin authentication. The environment is resolved from the `X-OMS-Environment` request header.
+
+### Audit event
+
+```json
+{
+  "order_id": "uuid",
+  "event_type": "order.sla_breach",
+  "timestamp": "2026-05-09T14:30:00Z",
+  "data": {
+    "status": "PICKING",
+    "sla_hours": 4.0,
+    "breach_hours": 5.7,
+    "lifecycle_id": "uuid"
+  }
+}
+```
+
+---
+
+## 22. Worker Reliability
+
+Several reliability improvements were added to the Celery workers to prevent duplicate processing and handle failures gracefully.
+
+### Idempotency on `start_picking`
+
+The `start_picking` task acquires a Redis lock before transitioning allocations to `PICKING`:
+
+```
+Key:   picking_lock:{order_id}
+TTL:   600 seconds (10 minutes)
+```
+
+If the lock is already held (e.g. the task was retried after a transient failure), the duplicate invocation exits immediately. This prevents double-picking the same order.
+
+### Rate limiting on `source_order`
+
+The sourcing worker enforces a global rate limit of **100 tasks/minute** using a Redis sliding window counter. Tasks that arrive above the limit are re-queued with a short delay rather than dropped.
+
+### Dead-letter queue signal on worker failure
+
+When a Celery task fails after exhausting all retries (`max_retries` exceeded), the worker publishes a signal to the `oms_dlq` Redis key. A background monitor reads this key and creates an `error_issues` document in MongoDB via the standard monitoring pipeline, making the failure visible in the Monitoring console without manual log inspection.
+
+### Session factory caching
+
+`EnvironmentEngineRegistry` caches an `async_sessionmaker` instance per engine rather than re-creating it on every request. The cached factory is invalidated automatically when the engine is replaced (e.g. after environment reprovisioning).
+
+---
+
+## 24. Platform Owner Role
+
+KubeRiva OMS uses a three-tier platform role system that controls who can manage the control plane (organizations and environments) vs. who can administer data within an environment.
+
+### Role hierarchy
+
+| Role | Access level |
+|------|-------------|
+| `PLATFORM_OWNER` | Full platform control: create/edit organizations and environments, assign platform roles to any user, all superadmin capabilities |
+| `SUPERADMIN` | Environment administration: connectors, monitoring, testing, architect console, webhooks; cannot create organizations or environments |
+| `USER` | Standard access: limited to the environments and brands they have been explicitly granted |
+
+### Role assignment
+
+```bash
+# Assign or change a user's platform role (Platform Owner only)
+PATCH /admin/users/{user_id}/platform-role
+Authorization: Bearer {platform_owner_token}
+Content-Type: application/json
+
+{ "platform_role": "SUPERADMIN" }
+```
+
+Valid values: `PLATFORM_OWNER`, `SUPERADMIN`, `USER`.
+
+### JWT token
+
+The `platform_role` field is included in every issued JWT. For legacy compatibility, `is_superadmin` is derived from `platform_role IN (SUPERADMIN, PLATFORM_OWNER)` and behaves identically for all existing role-gated endpoints.
+
+### Data model
+
+```sql
+-- Added to the users table on startup (idempotent):
+ALTER TABLE users ADD COLUMN IF NOT EXISTS platform_role VARCHAR(20);
+-- Back-fills existing superadmin rows:
+UPDATE users SET platform_role = 'SUPERADMIN' WHERE is_superadmin = TRUE AND platform_role IS NULL;
+```
+
+The `effective_platform_role` property on the `User` model resolves: explicit `platform_role` column value, or fallback to `SUPERADMIN` where the legacy `is_superadmin=TRUE` flag is set.
+
+### Platform Console UI
+
+The Platform Console page (`/platform`) is visible only to `PLATFORM_OWNER` users (crown icon in the sidebar navigation). It contains three tabs:
+
+| Tab | Content |
+|-----|---------|
+| **Organizations** | Create, edit, and activate/suspend organizations |
+| **Environments** | Create environments per organization; re-provision an existing environment |
+| **Users** | Assign or change platform roles for any registered user |
+
+---
+
+## 25. Node CRUD UI
+
+The Fulfillment Nodes page (`/nodes`) now supports full create, edit, and delete operations directly in the browser without requiring API calls.
+
+### Capabilities
+
+| Action | UI control | API backing |
+|--------|-----------|-------------|
+| Create node | "Add Node" button → modal form | `POST /nodes/` |
+| Edit node | Row action → edit modal (pre-filled) | `PATCH /nodes/{node_id}` |
+| Deactivate / delete | Row action → confirmation dialog | `DELETE /nodes/{node_id}` |
+| View capacity | Inline capacity bar per row | `GET /nodes/{node_id}/capacity` |
+
+### Node form fields
+
+The create/edit modal exposes all configurable node properties:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| Code | Yes | Short unique identifier (e.g. `DC-EAST`) |
+| Name | Yes | Display name |
+| Node type | Yes | `DISTRIBUTION_CENTER`, `RETAIL_STORE`, `DARK_STORE`, `WAREHOUSE`, `PICKUP_POINT` |
+| Status | Yes | `ACTIVE`, `INACTIVE`, `MAINTENANCE`, `CLOSED` |
+| Latitude / Longitude | No | Geographic coordinates for distance-based sourcing |
+| Shipping capabilities | No | Toggles: can ship, can pickup, curbside, same-day |
+| Daily order capacity | No | Hard cap; reset to 0 at midnight by the beat scheduler |
+| Shipping cost multiplier | No | Relative cost weight (default `1.0`) |
+
+Validation errors from the API (HTTP 422) are surfaced inline in the modal form, mapping each `loc` field path to its corresponding input.
+
+---
+
+## 26. End-to-End Test Suite
+
+KubeRiva OMS includes a server-side end-to-end test suite that runs against a live stack and cleans up after itself. Tests cover the full order lifecycle across all major subsystems.
+
+### Running the suite
+
+```bash
+# Run all 66 tests via the OMS API (requires a running stack)
+POST /ops/run-e2e-tests
+Authorization: Bearer {superadmin_token}
+```
+
+Or via the Monitoring page → "Run E2E Tests" button.
+
+Results are streamed back as JSON and also appended to `e2ecases.md` for reuse in regression runs.
+
+### Test groups (15 total)
+
+| Group | Coverage area |
+|-------|--------------|
+| Health & Auth | API health, JWT login, token validation |
+| Order CRUD | Create, read, update status, cancel |
+| Inventory | Stock adjustments, availability check, transfer |
+| Sourcing Rules | Rule CRUD, condition evaluation, manual evaluate |
+| Fulfillment Pipeline | Pick → Pack → Ship → Deliver state machine |
+| Connectors | Shopify/Amazon connector CRUD, webhook receiver |
+| Search | Full-text order and product search |
+| Analytics | Dashboard KPIs, volume trends, inventory summary |
+| Webhooks | Endpoint registration, HMAC validation, retry |
+| B2B Commerce | Account CRUD, approval gate, credit enforcement, invoicing |
+| Brands | Brand CRUD, toggle, sourcing rule brand filter |
+| Distribution Groups | Group CRUD, member management, priority ordering |
+| Lifecycles | Pipeline CRUD, resolve endpoint, SLA step config |
+| API Keys | Create, authenticate with `X-API-Key`, revoke |
+| Brand Access | Role assignment, IDOR protection, brand-scoped query filtering |
+
+### Cleanup guarantee
+
+Every test group registers its created resources (UUIDs returned by POST responses) and deletes them in reverse-creation order in a `finally` block. A test run that is interrupted mid-way will still clean up on the next successful run via a startup reconciliation check.
+
+### Isolation
+
+Tests create resources with a `test_` prefix on names and order numbers (e.g. `TEST-ORDER-20260509-...`) so they are distinguishable from production data in logs and the monitoring console.

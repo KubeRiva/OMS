@@ -5,7 +5,7 @@ import {
   CheckCircle, BellOff, RefreshCw, Filter, Clock, Layers,
   BarChart2, List, Activity, ExternalLink, XCircle,
   Server, Database, Zap, GitMerge, TrendingUp, Box,
-  Terminal, GitBranch, Bot, Send, Copy, Search,
+  Terminal, GitBranch, Bot, Send, Copy, Search, Tag,
   ArrowRight, RotateCcw,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -13,7 +13,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend,
 } from 'recharts'
-import api from '../api/client'
+import api, { getBrands, type Brand } from '../api/client'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -134,6 +134,7 @@ function buildEventsParams(filters: Filters, page: number) {
   if (filters.source)  p.source_service = filters.source
   if (filters.errType) p.error_type = filters.errType
   if (filters.orderId) p.order_id = filters.orderId
+  if (filters.brandId) p.brand_id = filters.brandId
   return p
 }
 
@@ -142,6 +143,7 @@ function buildIssuesParams(filters: Filters, page: number, sortBy: string) {
   if (filters.issueStatus) p.status = filters.issueStatus
   if (filters.level)       p.level = filters.level
   if (filters.source)      p.source_service = filters.source
+  if (filters.brandId)     p.brand_id = filters.brandId
   p.from_ts = fromTs(filters.hours)
   return p
 }
@@ -204,16 +206,18 @@ interface Filters {
   errType: string
   orderId: string
   issueStatus: string
+  brandId: string
 }
 
 type TabId = 'issues' | 'events' | 'metrics' | 'performance' | 'live_logs' | 'trace' | 'analyzer'
 
 const FILTER_TABS: TabId[] = ['issues', 'events', 'metrics', 'performance']
 
-function FilterBar({ filters, onChange, tab }: {
+function FilterBar({ filters, onChange, tab, brands }: {
   filters: Filters
   onChange: (f: Partial<Filters>) => void
   tab: TabId
+  brands: Brand[]
 }) {
   const sel = 'select text-xs border-0 bg-gray-100 rounded px-2 py-1.5 focus:ring-1 focus:ring-blue-500 outline-none'
   return (
@@ -258,8 +262,17 @@ function FilterBar({ filters, onChange, tab }: {
           onChange={e => onChange({ orderId: e.target.value })}
         />
       )}
+      {brands.length > 0 && (
+        <span className="inline-flex items-center gap-1">
+          <Tag className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+          <select className={sel} value={filters.brandId} onChange={e => onChange({ brandId: e.target.value })}>
+            <option value="">All Brands</option>
+            {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+        </span>
+      )}
       <button
-        onClick={() => onChange({ level: '', source: '', errType: '', orderId: '', issueStatus: 'open', hours: 24 })}
+        onClick={() => onChange({ level: '', source: '', errType: '', orderId: '', issueStatus: 'open', hours: 24, brandId: '' })}
         className="text-xs text-gray-500 hover:text-gray-800 underline"
       >
         Clear
@@ -755,15 +768,22 @@ function PerformanceTab({ filters, onRequeue }: { filters: Filters; onRequeue: (
   })
 
   const { data: pipe, isLoading: pipeLoading } = useQuery({
-    queryKey: ['perf-pipeline', filters.hours],
-    queryFn: () => api.get('/performance/pipeline', { params: { hours: filters.hours } }).then(r => r.data),
+    queryKey: ['perf-pipeline', filters.hours, filters.brandId],
+    queryFn: () => api.get('/performance/pipeline', { params: { hours: filters.hours, ...(filters.brandId ? { brand_id: filters.brandId } : {}) } }).then(r => r.data),
     refetchInterval: 60_000,
   })
 
   const { data: throughput } = useQuery({
-    queryKey: ['perf-throughput', filters.hours],
-    queryFn: () => api.get('/performance/throughput', { params: { hours: filters.hours } }).then(r => r.data),
+    queryKey: ['perf-throughput', filters.hours, filters.brandId],
+    queryFn: () => api.get('/performance/throughput', { params: { hours: filters.hours, ...(filters.brandId ? { brand_id: filters.brandId } : {}) } }).then(r => r.data),
     refetchInterval: 60_000,
+  })
+
+  const fromTs30d = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10)
+  const { data: returnsHealth } = useQuery({
+    queryKey: ['perf-returns', filters.brandId],
+    queryFn: () => api.get('/returns/', { params: { from_date: fromTs30d, limit: 1, ...(filters.brandId ? { brand_id: filters.brandId } : {}) } }).then(r => r.data as { total: number; items: Array<{ status: string }> }),
+    refetchInterval: 120_000,
   })
 
   const redis = sys?.redis ?? {}
@@ -945,6 +965,33 @@ function PerformanceTab({ filters, onRequeue }: { filters: Filters; onRequeue: (
                 </div>
               ))}
             </div>
+            {/* Returns card */}
+            {returnsHealth && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="border border-orange-100 bg-orange-50 rounded-xl p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-500">Returns (30d)</p>
+                    <p className="text-2xl font-bold text-orange-600 mt-0.5">{returnsHealth.total ?? 0}</p>
+                  </div>
+                  <RotateCcw className="w-6 h-6 text-orange-300" />
+                </div>
+                <div className="border border-orange-100 bg-orange-50 rounded-xl p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-500">Return Rate (30d)</p>
+                    <p className={`text-2xl font-bold mt-0.5 ${
+                      (funnel as Record<string, number>)['delivered'] > 0 &&
+                      (returnsHealth.total / ((funnel as Record<string, number>)['delivered'] || 1)) * 100 > 10
+                        ? 'text-red-600' : 'text-orange-600'
+                    }`}>
+                      {(funnel as Record<string, number>)['delivered'] > 0
+                        ? `${((returnsHealth.total / (funnel as Record<string, number>)['delivered']) * 100).toFixed(1)}%`
+                        : '—'}
+                    </p>
+                  </div>
+                  <RotateCcw className="w-6 h-6 text-orange-300" />
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="bg-white border border-gray-200 rounded-xl p-4">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Success Rates</p>
@@ -1375,7 +1422,14 @@ function AIAnalyzerTab({ initialCtx }: { initialCtx?: { fp?: string; oid?: strin
             <p className="text-lg font-medium text-gray-500">KubeAI SRE Assistant</p>
             <p className="text-sm mt-1">Ask about errors, stuck orders, or system health</p>
             <div className="flex flex-wrap justify-center gap-2 mt-4">
-              {['What went wrong in the last hour?', 'Why are orders stuck in CONFIRMED?', 'Which service has the most errors?'].map(q => (
+              {[
+                'What went wrong in the last hour?',
+                'Why are orders stuck in CONFIRMED?',
+                'Which service has the most errors?',
+                'What is the current return rate and why are returns high?',
+                'Show open RMAs and which brands have the most returns',
+                'Are there brand-specific sourcing failures in the last 24h?',
+              ].map(q => (
                 <button key={q} onClick={() => setQuestion(q)} className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1.5 rounded-full">{q}</button>
               ))}
             </div>
@@ -1427,10 +1481,16 @@ function AIAnalyzerTab({ initialCtx }: { initialCtx?: { fp?: string; oid?: strin
 export default function Monitoring() {
   const [tab, setTab] = useState<TabId>('issues')
   const [filters, setFilters] = useState<Filters>({
-    hours: 24, level: '', source: '', errType: '', orderId: '', issueStatus: 'open',
+    hours: 24, level: '', source: '', errType: '', orderId: '', issueStatus: 'open', brandId: '',
   })
   const [traceOrderId, setTraceOrderId] = useState<string | undefined>()
   const [analyzerCtx, setAnalyzerCtx] = useState<{ fp?: string; oid?: string; q?: string } | undefined>()
+
+  const { data: brandsData } = useQuery({
+    queryKey: ['brands', 'active'],
+    queryFn: () => getBrands({ is_active: true }),
+  })
+  const brands: Brand[] = brandsData ?? []
 
   const { data: summary } = useQuery<Summary>({
     queryKey: ['monitoring-summary'],
@@ -1515,7 +1575,7 @@ export default function Monitoring() {
 
       {/* Content */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        {showFilterBar && <FilterBar filters={filters} onChange={patchFilters} tab={tab} />}
+        {showFilterBar && <FilterBar filters={filters} onChange={patchFilters} tab={tab} brands={brands} />}
         {tab === 'issues'      && <IssuesTab filters={filters} />}
         {tab === 'events'      && <EventsTab filters={filters} onTrace={handleTrace} />}
         {tab === 'metrics'     && <MetricsTab filters={filters} />}

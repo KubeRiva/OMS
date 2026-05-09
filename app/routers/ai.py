@@ -10,19 +10,18 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from app.dependencies.auth import get_current_user, require_superadmin
 
-from sqlalchemy import select, func
+limiter = Limiter(key_func=get_remote_address)
+from sqlalchemy import select, func, and_
 from sqlalchemy.orm import selectinload
 
 from app.database.postgres import async_session_factory
 from app.models.postgres.order_models import (
-    Order, OrderItem, FulfillmentAllocation,
-    OrderStatus, OrderChannel,
+    Order, OrderItem, FulfillmentAllocation, Shipment,
+    OrderStatus, OrderChannel, FulfillmentType,
 )
 from app.models.postgres.inventory_models import InventoryItem
 from app.models.postgres.node_models import FulfillmentNode
 from app.models.postgres.sourcing_rule_models import SourcingRule
-
-limiter = Limiter(key_func=get_remote_address)
 
 logger = logging.getLogger(__name__)
 
@@ -176,6 +175,47 @@ TOOLS = [
             "required": ["group_by"],
         },
     },
+    {
+        "name": "get_brands",
+        "description": "Get all brands configured in the system with their mode (B2C/B2B/HYBRID) and operational config.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "active_only": {"type": "boolean", "description": "Return only active brands (default true)"},
+            },
+        },
+    },
+    {
+        "name": "get_b2b_accounts",
+        "description": (
+            "Get B2B customer accounts with credit limits, balance, and order history. "
+            "Use for: credit utilization questions, top B2B customers, accounts near limit, payment terms analysis."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "search": {"type": "string", "description": "Search by company name or account number"},
+                "brand_id": {"type": "string", "description": "Filter by brand UUID"},
+                "limit": {"type": "integer", "description": "Max accounts to return (default 20)"},
+            },
+        },
+    },
+    {
+        "name": "get_returns",
+        "description": (
+            "Get return/RMA records with status, reason, and refund information. "
+            "Use for: return rate analysis, pending returns, returns by status, RMA lookup."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "status": {"type": "string", "description": "Filter by return status (REQUESTED, APPROVED, IN_TRANSIT, RECEIVED, RESTOCKED, COMPLETED, REJECTED)"},
+                "order_id": {"type": "string", "description": "Filter returns for a specific order UUID or order number"},
+                "days": {"type": "integer", "description": "Lookback period in days (default 30, 0 = all time)"},
+                "limit": {"type": "integer", "description": "Max returns to return (default 20)"},
+            },
+        },
+    },
 ]
 
 
@@ -200,6 +240,12 @@ async def execute_tool(tool_name: str, tool_input: dict) -> dict:
             return await _get_top_selling_items(db, tool_input)
         elif tool_name == "aggregate_orders":
             return await _aggregate_orders(db, tool_input)
+        elif tool_name == "get_brands":
+            return await _get_brands(db, tool_input)
+        elif tool_name == "get_b2b_accounts":
+            return await _get_b2b_accounts(db, tool_input)
+        elif tool_name == "get_returns":
+            return await _get_returns(db, tool_input)
         else:
             return {"error": f"Unknown tool: {tool_name}"}
 
@@ -673,6 +719,118 @@ async def _aggregate_orders(db, inp: dict) -> dict:
     }
 
 
+async def _get_brands(db, inp: dict) -> dict:
+    from app.models.postgres.brand_models import Brand, BrandConfig
+    active_only = inp.get("active_only", True)
+    q = select(Brand)
+    if active_only:
+        q = q.where(Brand.is_active == True)  # noqa: E712
+    q = q.order_by(Brand.name)
+    brands = (await db.execute(q)).scalars().all()
+    return {
+        "brands": [
+            {
+                "id": str(b.id),
+                "slug": b.slug,
+                "name": b.name,
+                "tenant_mode": b.tenant_mode.value if hasattr(b.tenant_mode, "value") else str(b.tenant_mode),
+                "inventory_mode": b.inventory_mode,
+                "is_active": b.is_active,
+                "created_at": b.created_at.isoformat() if b.created_at else None,
+            }
+            for b in brands
+        ],
+        "count": len(brands),
+    }
+
+
+async def _get_b2b_accounts(db, inp: dict) -> dict:
+    from app.models.postgres.b2b_models import CustomerAccount
+    q = select(CustomerAccount).where(CustomerAccount.is_active == True)  # noqa: E712
+    if inp.get("search"):
+        term = f"%{inp['search']}%"
+        q = q.where(
+            CustomerAccount.company_name.ilike(term) |
+            CustomerAccount.account_number.ilike(term)
+        )
+    if inp.get("brand_id"):
+        try:
+            import uuid
+            q = q.where(CustomerAccount.brand_id == uuid.UUID(inp["brand_id"]))
+        except ValueError:
+            pass
+    limit = min(int(inp.get("limit", 20)), 100)
+    q = q.order_by(CustomerAccount.company_name).limit(limit)
+    accounts = (await db.execute(q)).scalars().all()
+    return {
+        "accounts": [
+            {
+                "id": str(a.id),
+                "account_number": a.account_number,
+                "company_name": a.company_name,
+                "credit_limit": float(a.credit_limit or 0),
+                "credit_used": float(a.credit_used or 0),
+                "available_credit": float(a.credit_limit or 0) - float(a.credit_used or 0),
+                "payment_terms": a.payment_terms.value if hasattr(a.payment_terms, "value") else str(a.payment_terms),
+                "brand_id": str(a.brand_id) if a.brand_id else None,
+                "is_active": a.is_active,
+            }
+            for a in accounts
+        ],
+        "count": len(accounts),
+    }
+
+
+async def _get_returns(db, inp: dict) -> dict:
+    from app.models.postgres.return_models import OrderReturn, ReturnStatus
+    from datetime import datetime, timezone, timedelta
+    q = select(OrderReturn)
+    if inp.get("status"):
+        try:
+            q = q.where(OrderReturn.status == ReturnStatus(inp["status"].upper()))
+        except ValueError:
+            pass
+    if inp.get("order_id"):
+        order_id_str = inp["order_id"]
+        if order_id_str.upper().startswith("ORD-"):
+            # Look up by order number
+            order_q = select(Order).where(Order.order_number == order_id_str.upper())
+            order_row = (await db.execute(order_q)).scalar_one_or_none()
+            if order_row:
+                q = q.where(OrderReturn.order_id == order_row.id)
+        else:
+            try:
+                import uuid
+                q = q.where(OrderReturn.order_id == uuid.UUID(order_id_str))
+            except ValueError:
+                pass
+    days = int(inp.get("days", 30))
+    if days > 0:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        q = q.where(OrderReturn.created_at >= cutoff)
+    limit = min(int(inp.get("limit", 20)), 100)
+    q = q.order_by(OrderReturn.created_at.desc()).limit(limit)
+    returns = (await db.execute(q)).scalars().all()
+    return {
+        "returns": [
+            {
+                "id": str(r.id),
+                "return_number": r.return_number,
+                "order_id": str(r.order_id),
+                "status": r.status.value if hasattr(r.status, "value") else str(r.status),
+                "reason": r.reason,
+                "total_refund_amount": float(r.total_refund_amount or 0),
+                "currency": r.currency,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+                "received_at": r.received_at.isoformat() if r.received_at else None,
+                "restocked_at": r.restocked_at.isoformat() if r.restocked_at else None,
+            }
+            for r in returns
+        ],
+        "count": len(returns),
+    }
+
+
 def _order_to_dict(o: Order) -> dict:
     return {
         "id": str(o.id),
@@ -737,6 +895,12 @@ def _data_kind(tool_name: str, result: dict) -> str | None:
         return "top_items"
     if tool_name == "aggregate_orders":
         return "aggregate"
+    if tool_name == "get_brands":
+        return "brands"
+    if tool_name == "get_b2b_accounts":
+        return "b2b_accounts"
+    if tool_name == "get_returns":
+        return "returns"
     return None
 
 
@@ -806,6 +970,15 @@ UNDERSTAND the user's intent, then pick the correct tool:
 11. "node locations", "fulfillment centers", "warehouse capacity"
     → get_nodes
 
+12. "brands", "which brands", "brand mode", "B2C brand", "B2B brand"
+    → get_brands
+
+13. "B2B accounts", "credit limit", "credit used", "customer account", "wholesale account"
+    → get_b2b_accounts
+
+14. "returns", "RMA", "refunds", "return rate", "which orders were returned"
+    → get_returns
+
 CRITICAL: Do NOT use get_analytics_summary for product, customer, or trend questions. It only returns totals — use aggregate_orders for breakdowns.
 
 ═══ RESPONSE STYLE ═══
@@ -815,6 +988,16 @@ CRITICAL: Do NOT use get_analytics_summary for product, customer, or trend quest
 
     conversation = list(messages)
     max_rounds = 8
+
+    # System prompt with cache_control — Anthropic caches the prefix across turns,
+    # saving ~70% of input tokens on rounds 2+ of a multi-turn conversation.
+    cached_system = [
+        {
+            "type": "text",
+            "text": system_prompt,
+            "cache_control": {"type": "ephemeral"},
+        }
+    ]
 
     try:
         for _round in range(max_rounds):
@@ -826,7 +1009,7 @@ CRITICAL: Do NOT use get_analytics_summary for product, customer, or trend quest
             async with client.messages.stream(
                 model="claude-sonnet-4-6",
                 max_tokens=4096,
-                system=system_prompt,
+                system=cached_system,
                 tools=TOOLS,
                 messages=conversation,
             ) as stream:
@@ -908,7 +1091,15 @@ CRITICAL: Do NOT use get_analytics_summary for product, customer, or trend quest
 
     except Exception as exc:
         logger.exception("AI streaming error")
-        yield f"data: {json.dumps({'type': 'error', 'message': 'An error occurred processing your request'})}\n\n"
+        try:
+            from anthropic import AuthenticationError as AnthropicAuthError
+            if isinstance(exc, AnthropicAuthError):
+                msg = "API key invalid or expired. Please update ANTHROPIC_API_KEY and restart the backend."
+            else:
+                msg = "An error occurred processing your request"
+        except ImportError:
+            msg = "An error occurred processing your request"
+        yield f"data: {json.dumps({'type': 'error', 'message': msg})}\n\n"
 
     yield "data: [DONE]\n\n"
 

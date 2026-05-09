@@ -1,12 +1,16 @@
 version: "3.9"
 
+# IMPORTANT: Change all default passwords before deploying to any non-local environment.
+# Set environment variables (POSTGRES_PASSWORD, MONGO_PASSWORD, REDIS_PASSWORD)
+# or use a secrets manager. The defaults below are for local development only.
+
 services:
   postgres:
     image: postgres:16-alpine
     container_name: oms_postgres
     environment:
       POSTGRES_USER: oms_user
-      POSTGRES_PASSWORD: oms_pass
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-oms_pass}
       POSTGRES_DB: oms_db
     ports:
       - "5433:5432"
@@ -23,7 +27,7 @@ services:
     container_name: oms_mongodb
     environment:
       MONGO_INITDB_ROOT_USERNAME: oms_user
-      MONGO_INITDB_ROOT_PASSWORD: oms_pass
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-oms_pass}
       MONGO_INITDB_DATABASE: oms_events
     ports:
       - "27018:27017"

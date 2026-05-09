@@ -2,12 +2,14 @@
 Core order models: Order, OrderItem, FulfillmentAllocation, Shipment, etc.
 """
 import uuid
+from datetime import datetime
 from sqlalchemy import (
     Column, String, Float, Boolean, DateTime, Integer,
     Enum as SAEnum, Text, ForeignKey, Index, JSON, Numeric
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
+
 from sqlalchemy.sql import func
 import enum
 
@@ -20,6 +22,33 @@ class OrderChannel(str, enum.Enum):
     POS = "POS"
     API = "API"
     MARKETPLACE = "MARKETPLACE"
+    B2B = "B2B"
+    EDI = "EDI"
+    WHOLESALE = "WHOLESALE"
+
+
+class OrderType(str, enum.Enum):
+    RETAIL = "RETAIL"
+    WHOLESALE = "WHOLESALE"
+    B2B = "B2B"
+    INTERNAL = "INTERNAL"
+
+
+class PaymentTerms(str, enum.Enum):
+    PREPAID = "PREPAID"
+    NET_15 = "NET_15"
+    NET_30 = "NET_30"
+    NET_60 = "NET_60"
+    NET_90 = "NET_90"
+    COD = "COD"
+    UPON_RECEIPT = "UPON_RECEIPT"
+
+
+class ApprovalStatus(str, enum.Enum):
+    NOT_REQUIRED = "NOT_REQUIRED"
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
 
 
 class FulfillmentType(str, enum.Enum):
@@ -28,6 +57,8 @@ class FulfillmentType(str, enum.Enum):
     SHIP_FROM_STORE = "SHIP_FROM_STORE"
     CURBSIDE_PICKUP = "CURBSIDE_PICKUP"
     SAME_DAY_DELIVERY = "SAME_DAY_DELIVERY"
+    FREIGHT = "FREIGHT"
+    DROP_SHIP = "DROP_SHIP"
 
 
 class OrderStatus(str, enum.Enum):
@@ -104,15 +135,36 @@ class Order(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     order_number = Column(String(50), unique=True, nullable=False, index=True)
     channel = Column(SAEnum(OrderChannel), nullable=False)
+    order_type = Column(String(20), default=OrderType.RETAIL.value, nullable=False)
     fulfillment_type = Column(SAEnum(FulfillmentType), nullable=False)
     status = Column(SAEnum(OrderStatus), default=OrderStatus.CONFIRMED, nullable=False)
     payment_status = Column(SAEnum(PaymentStatus), default=PaymentStatus.PENDING)
 
-    # Customer
+    # Customer (B2C transactional fields)
     customer_id = Column(String(100), index=True)
     customer_email = Column(String(255), nullable=False, index=True)
     customer_phone = Column(String(30))
     customer_name = Column(String(200))
+
+    # B2B — linked account
+    customer_account_id = Column(UUID(as_uuid=True), ForeignKey("customer_accounts.id"), nullable=True, index=True)
+
+    # B2B — purchasing & approval
+    po_number = Column(String(100), index=True)
+    payment_terms = Column(String(20), default=PaymentTerms.PREPAID.value, nullable=False)
+    approval_status = Column(String(20), default=ApprovalStatus.NOT_REQUIRED.value, nullable=False)
+    approved_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    approved_at = Column(DateTime(timezone=True))
+    payment_due_date = Column(DateTime(timezone=True))  # calculated from payment_terms + confirmed_at
+
+    # B2B — billing address (may differ from shipping)
+    billing_name = Column(String(200))
+    billing_address1 = Column(String(255))
+    billing_address2 = Column(String(255))
+    billing_city = Column(String(100))
+    billing_state = Column(String(100))
+    billing_postal_code = Column(String(20))
+    billing_country = Column(String(3), default="US")
 
     # Financial
     subtotal = Column(Numeric(12, 2), default=0)
@@ -159,7 +211,18 @@ class Order(Base):
     delivered_at = Column(DateTime(timezone=True))
     backordered_since = Column(DateTime(timezone=True), nullable=True)
 
+    # Brand (optional — NULL means legacy/unbranded data)
+    brand_id = Column(UUID(as_uuid=True), ForeignKey("brands.id"), nullable=True, index=True)
+
+    # Seller brand (marketplace / B2B2C participant model):
+    # who prices and fulfills this order; defaults to brand_id when null
+    seller_brand_id = Column(UUID(as_uuid=True), ForeignKey("brands.id"), nullable=True)
+
     # Relationships
+    brand        = relationship("Brand", back_populates="orders",       lazy="select", foreign_keys=[brand_id])
+    seller_brand = relationship("Brand", back_populates="seller_orders", lazy="select", foreign_keys=[seller_brand_id])
+    customer_account = relationship("CustomerAccount", back_populates="orders", foreign_keys=[customer_account_id])
+    approved_by = relationship("User", foreign_keys=[approved_by_id])
     line_items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
     fulfillment_allocations = relationship("FulfillmentAllocation", back_populates="order", cascade="all, delete-orphan")
     shipments = relationship("Shipment", back_populates="order", cascade="all, delete-orphan")
@@ -168,6 +231,8 @@ class Order(Base):
     __table_args__ = (
         Index("ix_orders_status_created", "status", "created_at"),
         Index("ix_orders_channel_status", "channel", "status"),
+        Index("ix_orders_brand", "brand_id"),
+        Index("ix_orders_seller_brand", "seller_brand_id"),
     )
 
 
@@ -179,17 +244,17 @@ class OrderItem(Base):
     sku = Column(String(100), nullable=False, index=True)
     product_name = Column(String(300), nullable=False)
     quantity = Column(Integer, nullable=False)
-
+    
     # Quantity breakdown by status
     quantity_pending = Column(Integer, default=0)       # Not yet allocated (waiting for sourcing)
     quantity_allocated = Column(Integer, default=0)     # Allocated to nodes but not shipped
     quantity_backordered = Column(Integer, default=0)   # Could not be allocated (insufficient inventory)
     quantity_shipped = Column(Integer, default=0)       # Shipped to customer
     quantity_delivered = Column(Integer, default=0)     # Delivered to customer
-
+    
     # Legacy field (keep for backward compatibility)
     quantity_fulfilled = Column(Integer, default=0)
-
+    
     status = Column(SAEnum(OrderItemStatus), default=OrderItemStatus.PENDING)
     unit_price = Column(Numeric(12, 2), nullable=False)
     discount_amount = Column(Numeric(12, 2), default=0)

@@ -42,6 +42,7 @@ class OrganizationUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = None
     is_active: Optional[bool] = None
+    tenant_mode: Optional[str] = Field(None, pattern="^(B2C_ONLY|B2B_ONLY|HYBRID)$")
 
 
 class OrganizationResponse(BaseModel):
@@ -50,6 +51,7 @@ class OrganizationResponse(BaseModel):
     slug: str
     description: Optional[str]
     is_active: bool
+    tenant_mode: str = "HYBRID"
     environment_count: int = 0
 
     model_config = {"from_attributes": True}
@@ -99,6 +101,7 @@ async def list_organizations(
             slug=org.slug,
             description=org.description,
             is_active=org.is_active,
+            tenant_mode=getattr(org, "tenant_mode", "HYBRID"),
             environment_count=count,
         ))
     return response
@@ -128,6 +131,7 @@ async def create_organization(
         slug=org.slug,
         description=org.description,
         is_active=org.is_active,
+        tenant_mode=getattr(org, "tenant_mode", "HYBRID"),
         environment_count=0,
     )
 
@@ -165,6 +169,7 @@ async def get_organization(
     return OrganizationResponse(
         id=org.id, name=org.name, slug=org.slug,
         description=org.description, is_active=org.is_active,
+        tenant_mode=getattr(org, "tenant_mode", "HYBRID"),
         environment_count=count,
     )
 
@@ -188,8 +193,27 @@ async def update_organization(
         org.description = body.description
     if body.is_active is not None:
         org.is_active = body.is_active
+    if body.tenant_mode is not None:
+        org.tenant_mode = body.tenant_mode
 
     await db.flush()
+
+    # Invalidate Redis env cache for every environment in this org so the new
+    # tenant_mode is picked up within the next request (not after 60s TTL).
+    if body.tenant_mode is not None:
+        try:
+            from app.database.redis_client import get_redis_client
+            from sqlalchemy import select as _select
+            redis = get_redis_client()
+            if redis:
+                env_result = await db.execute(
+                    _select(Environment.id).where(Environment.organization_id == org_id)
+                )
+                for (env_id_val,) in env_result.all():
+                    await redis.delete(f"env:{env_id_val}")
+                await redis.aclose()
+        except Exception:
+            pass  # cache invalidation failure is non-fatal
 
     count_result = await db.execute(
         select(func.count(Environment.id)).where(Environment.organization_id == org_id)
@@ -199,6 +223,7 @@ async def update_organization(
     return OrganizationResponse(
         id=org.id, name=org.name, slug=org.slug,
         description=org.description, is_active=org.is_active,
+        tenant_mode=getattr(org, "tenant_mode", "HYBRID"),
         environment_count=count,
     )
 

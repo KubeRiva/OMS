@@ -117,6 +117,12 @@ export default function Inventory() {
         </button>
       </div>
 
+      {/* Brand-neutral note */}
+      <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-xs text-blue-700 flex items-start gap-2">
+        <span className="flex-shrink-0 mt-0.5 font-bold">i</span>
+        <p>Inventory is shared across all brands. Brands with Isolated inventory mode will only see their own stock. Use brand filters in Orders and Sourcing Rules to view brand-specific operations.</p>
+      </div>
+
       {/* Filters */}
       <div className="card p-3 flex flex-wrap items-center gap-3">
         <Package className="w-4 h-4 text-gray-400 flex-shrink-0" />

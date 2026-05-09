@@ -116,11 +116,11 @@ def test_scoring_strategies():
     from app.models.postgres.sourcing_rule_models import SourcingStrategy
     from unittest.mock import MagicMock
 
-    def make_candidate(dist_miles, cost, inv):
+    def make_candidate(dist_km, cost, inv):
         c = NodeCandidate(
             node=MagicMock(),
             inventory_by_sku={"SKU-A": inv},
-            distance_miles=dist_miles,
+            distance_km=dist_km,
             estimated_cost=cost,
         )
         return c
@@ -139,7 +139,7 @@ def test_scoring_strategies():
         make_candidate(200, 15, 100),  # medium (equal inv)
     ]
     scored = _score_nodes(equal_inv_candidates[:], SourcingStrategy.DISTANCE_OPTIMAL, None)
-    assert scored[0].distance_miles == 100  # nearest wins when inventory is equal
+    assert scored[0].distance_km == 100  # nearest wins when inventory is equal
 
     # INVENTORY_RESERVATION — best stock should score highest
     scored = _score_nodes(candidates[:], SourcingStrategy.INVENTORY_RESERVATION, None)
@@ -155,7 +155,6 @@ def test_split_algorithm():
         item = MagicMock()
         item.sku = sku
         item.quantity = qty
-        item.quantity_backordered = 0
         return item
 
     def make_candidate(node_id, inv_by_sku, score=0.8):

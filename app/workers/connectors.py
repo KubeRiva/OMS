@@ -13,6 +13,12 @@ from app.models.postgres.connector_models import (
     Connector, ConnectorEvent, ConnectorStatus, ConnectorType,
 )
 from app.models.postgres.order_models import Order
+# Register all mappers Order depends on (brand_id/seller_brand_id relationships)
+import app.models.postgres.brand_models      # noqa: F401
+import app.models.postgres.b2b_models        # noqa: F401
+import app.models.postgres.auth_models       # noqa: F401
+import app.models.postgres.node_models       # noqa: F401
+import app.models.postgres.sourcing_rule_models  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -355,6 +361,7 @@ async def _async_poll_amazon_connector(connector_id: str) -> int:
                     discount_amount=order_data.get("discount_amount", 0),
                     external_order_id=amazon_order_id,
                     connector_id=connector.id,
+                    brand_id=connector.brand_id,
                     tags=order_data.get("tags", []),
                     notes=order_data.get("notes"),
                     metadata_=order_data.get("metadata", {}),

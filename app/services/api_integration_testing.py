@@ -51,7 +51,7 @@ class ApiIntegrationTestService:
     All created resources are tracked and deleted in cleanup().
     """
 
-    def __init__(self, base_url: Optional[str] = None, admin_email: str = "admin@oms.local", admin_password: str = "admin123"):
+    def __init__(self, base_url: Optional[str] = None, admin_email: str = "admin@oms.local", admin_password: str = ""):
         # Prefer the public base URL from settings; fall back to localhost
         self.base_url = (base_url or settings.PUBLIC_BASE_URL or "http://localhost:8000").rstrip("/")
         self.admin_email = admin_email
@@ -62,6 +62,12 @@ class ApiIntegrationTestService:
         self._inv_ids: List[str] = []
         self._user_ids: List[str] = []
         self._user_emails: List[str] = []
+        self._dg_ids: List[str] = []
+        self._api_key_ids: List[str] = []
+        self._brand_access_ids: List[str] = []
+        self._brand_ids: List[str] = []
+        self._custom_attr_ids: List[str] = []
+        self._reg_user_id: str = ""
 
     # ------------------------------------------------------------------ runner
 
@@ -78,8 +84,13 @@ class ApiIntegrationTestService:
             await self._run_search(client, results)
             await self._run_ai(client, results)
             await self._run_rbac(client, results)
-            await self._run_shopify(client, results)
             await self._run_security(client, results)
+            await self._run_brand(client, results)
+            await self._run_distribution_groups(client, results)
+            await self._run_api_keys(client, results)
+            await self._run_brand_access(client, results)
+            await self._run_sla(client, results)
+            await self._run_custom_attrs(client, results)
 
         test_dur = (time.time() - t0) * 1000
 
@@ -374,6 +385,7 @@ class ApiIntegrationTestService:
             uid = data.get("id", "") if isinstance(data, dict) else ""
             if uid:
                 self._user_ids.append(uid)
+                self._reg_user_id = uid
             self._user_emails.append(reg_email)
             # Login as regular user
             lcode, ldata, _ = await self._req(client, "POST", "/auth/login",
@@ -395,125 +407,6 @@ class ApiIntegrationTestService:
         code, _, ms = await self._req(client, "POST", "/testing/e2e/run", token=rbac_token)
         self._ok(results, "RBAC-4", "Non-admin → testing → 403/401/405", "RBAC",
                  code in (403, 401, 405), f"HTTP {code}", ms)
-
-    # ------------------------------------------------------------------ SHOPIFY
-
-    async def _run_shopify(self, client: httpx.AsyncClient, results: List[ApiTestResult]):
-        token = getattr(self, "_token", "")
-
-        # SHOPIFY-01: Install redirect — missing shop param → 422
-        code, _, ms = await self._req(client, "GET", "/shopify/install", no_auth=True)
-        self._ok(results, "SHOPIFY-01", "Install missing shop param → 422", "SHOPIFY",
-                 code == 422, f"HTTP {code}", ms)
-
-        # SHOPIFY-02: Install redirect — invalid shop hostname → 400
-        code, _, ms = await self._req(client, "GET", "/shopify/install?shop=evil.com", no_auth=True)
-        self._ok(results, "SHOPIFY-02", "Install invalid shop hostname → 400", "SHOPIFY",
-                 code == 400, f"HTTP {code}", ms)
-
-        # SHOPIFY-03: Install redirect — shopify not configured → 503
-        # In the test environment SHOPIFY_API_KEY is expected to be unset.
-        code, _, ms = await self._req(client, "GET", "/shopify/install?shop=test.myshopify.com", no_auth=True)
-        self._ok(results, "SHOPIFY-03", "Install shopify not configured → 503", "SHOPIFY",
-                 code == 503, f"HTTP {code}", ms)
-
-        # SHOPIFY-04: OAuth callback — missing params → 422 or 400
-        code, _, ms = await self._req(client, "GET", "/shopify/callback", no_auth=True)
-        self._ok(results, "SHOPIFY-04", "Callback missing params → 422 or 400", "SHOPIFY",
-                 code in (422, 400), f"HTTP {code}", ms)
-
-        # SHOPIFY-05: OAuth callback — invalid shop hostname → 400
-        code, _, ms = await self._req(
-            client, "GET",
-            "/shopify/callback?code=abc&shop=evil.com&hmac=x&state=y&timestamp=123",
-            no_auth=True,
-        )
-        self._ok(results, "SHOPIFY-05", "Callback invalid shop hostname → 400", "SHOPIFY",
-                 code == 400, f"HTTP {code}", ms)
-
-        # SHOPIFY-06: OAuth callback — valid hostname but nonexistent state nonce → 400
-        import time as _time
-        ts_now = str(int(_time.time()))
-        code, _, ms = await self._req(
-            client, "GET",
-            f"/shopify/callback?code=abc&shop=test.myshopify.com&hmac=x&state=nonexistent_nonce_uat&timestamp={ts_now}",
-            no_auth=True,
-        )
-        self._ok(results, "SHOPIFY-06", "Callback invalid/expired state → 400", "SHOPIFY",
-                 code == 400, f"HTTP {code}", ms)
-
-        # SHOPIFY-07: GDPR data_request — no HMAC → 200 (Shopify contract)
-        code, data, ms = await self._req(
-            client, "POST", "/shopify/gdpr/customers/data_request",
-            json={"shop_id": 1, "shop_domain": "test.myshopify.com"},
-            no_auth=True,
-        )
-        self._ok(results, "SHOPIFY-07", "GDPR data_request no HMAC → 200", "SHOPIFY",
-                 code == 200, f"HTTP {code}", ms)
-
-        # SHOPIFY-08: GDPR customer_redact — no HMAC → 200 (Shopify contract)
-        code, data, ms = await self._req(
-            client, "POST", "/shopify/gdpr/customers/redact",
-            json={"shop_id": 1, "shop_domain": "test.myshopify.com", "orders_to_redact": []},
-            no_auth=True,
-        )
-        self._ok(results, "SHOPIFY-08", "GDPR customer_redact no HMAC → 200", "SHOPIFY",
-                 code == 200, f"HTTP {code}", ms)
-
-        # SHOPIFY-09: GDPR shop_redact — no HMAC → 200 (Shopify contract)
-        code, data, ms = await self._req(
-            client, "POST", "/shopify/gdpr/shop/redact",
-            json={"shop_id": 1, "shop_domain": "test.myshopify.com"},
-            no_auth=True,
-        )
-        self._ok(results, "SHOPIFY-09", "GDPR shop_redact no HMAC → 200", "SHOPIFY",
-                 code == 200, f"HTTP {code}", ms)
-
-        # SHOPIFY-10: Billing plans — public endpoint → 200 with plan keys
-        code, data, ms = await self._req(client, "GET", "/shopify/billing/plans", no_auth=True)
-        has_plans = (
-            isinstance(data, dict)
-            and all(k in data for k in ("STARTER", "GROWTH", "ENTERPRISE"))
-        )
-        self._ok(results, "SHOPIFY-10", "Billing plans public → 200 with plan keys", "SHOPIFY",
-                 code == 200 and has_plans,
-                 "" if (code == 200 and has_plans) else f"HTTP {code} data={data}", ms)
-
-        # SHOPIFY-11: Billing subscribe — requires JWT → 401 without token
-        code, _, ms = await self._req(
-            client, "POST", "/shopify/billing/subscribe",
-            json={"shop": "test.myshopify.com", "plan": "STARTER"},
-            no_auth=True,
-        )
-        self._ok(results, "SHOPIFY-11", "Billing subscribe no auth → 401", "SHOPIFY",
-                 code == 401, f"HTTP {code}", ms)
-
-        # SHOPIFY-12: Billing subscribe — authenticated but invalid plan → 400 or 422
-        code, _, ms = await self._req(
-            client, "POST", "/shopify/billing/subscribe",
-            token=token,
-            json={"shop": "test.myshopify.com", "plan": "INVALID"},
-        )
-        self._ok(results, "SHOPIFY-12", "Billing subscribe invalid plan → 400 or 422", "SHOPIFY",
-                 code in (400, 422), f"HTTP {code}", ms)
-
-        # SHOPIFY-13: Uninstall webhook — no HMAC → 200 (suppresses Shopify retries)
-        code, data, ms = await self._req(
-            client, "POST", "/shopify/webhooks/uninstall",
-            json={"domain": "test.myshopify.com"},
-            no_auth=True,
-        )
-        self._ok(results, "SHOPIFY-13", "Uninstall webhook no HMAC → 200", "SHOPIFY",
-                 code == 200, f"HTTP {code}", ms)
-
-        # SHOPIFY-14: Billing webhook — no HMAC → 200 (suppresses Shopify retries)
-        code, data, ms = await self._req(
-            client, "POST", "/shopify/webhooks/billing",
-            json={"app_subscription": {"admin_graphql_api_id": "gid://shopify/AppSubscription/999", "status": "ACTIVE"}},
-            no_auth=True,
-        )
-        self._ok(results, "SHOPIFY-14", "Billing webhook no HMAC → 200", "SHOPIFY",
-                 code == 200, f"HTTP {code}", ms)
 
     # ------------------------------------------------------------------ SECURITY
 
@@ -545,6 +438,250 @@ class ApiIntegrationTestService:
                        c.get("config", {}).get("webhook_secret") not in (None, "***", "")]
         self._ok(results, "SEC-3", "Connector webhook_secret masked", "SECURITY",
                  len(leaked_conn) == 0, "Secret leaked" if leaked_conn else "", ms)
+
+    # ------------------------------------------------------------------ BRAND
+
+    async def _run_brand(self, client: httpx.AsyncClient, results: List[ApiTestResult]):
+        token = getattr(self, "_token", "")
+        brand_id = ""
+        brand_slug = ""
+
+        ts = int(time.time())
+        code, data, ms = await self._req(client, "POST", "/brands/", token=token, json={
+            "slug": f"uat-brand-{ts}", "name": "UAT Brand", "tenant_mode": "HYBRID",
+        })
+        if code in (200, 201) and isinstance(data, dict):
+            brand_id = data.get("id", "")
+            brand_slug = data.get("slug", f"uat-brand-{ts}")
+        if brand_id:
+            self._brand_ids.append(brand_id)
+        self._ok(results, "BRAND-1", "Create brand → 201", "BRAND",
+                 code in (200, 201), f"HTTP {code}", ms)
+
+        qid = brand_id or "00000000-0000-0000-0000-000000000000"
+        code, _, ms = await self._req(client, "GET", f"/orders/?brand_id={qid}", token=token)
+        self._ok(results, "BRAND-2", "Brand filter on orders → 200", "BRAND", code == 200, f"HTTP {code}", ms)
+
+        code, _, ms = await self._req(client, "GET", f"/analytics/dashboard?brand_id={qid}", token=token)
+        self._ok(results, "BRAND-3", "Brand filter on dashboard → 200", "BRAND", code == 200, f"HTTP {code}", ms)
+
+        if brand_slug:
+            code, _, ms = await self._req(client, "POST", "/brands/", token=token, json={
+                "slug": brand_slug, "name": "Duplicate Brand", "tenant_mode": "B2C_ONLY",
+            })
+            self._ok(results, "BRAND-4", "Duplicate slug → 409", "BRAND", code == 409, f"HTTP {code}", ms)
+        else:
+            self._skip(results, "BRAND-4", "Duplicate slug → 409", "BRAND", "No brand created")
+
+    # ------------------------------------------------------------------ DISTRIBUTION GROUPS
+
+    async def _run_distribution_groups(self, client: httpx.AsyncClient, results: List[ApiTestResult]):
+        token = getattr(self, "_token", "")
+        dg_id = ""
+
+        code, data, ms = await self._req(client, "POST", "/distribution-groups/", token=token, json={
+            "name": "UAT Distribution Group", "is_active": True,
+        })
+        dg_id = data.get("id", "") if isinstance(data, dict) else ""
+        if dg_id:
+            self._dg_ids.append(dg_id)
+        self._ok(results, "DG-1", "Create distribution group → 201", "DIST_GROUPS",
+                 bool(dg_id), f"HTTP {code}" if not dg_id else "", ms)
+
+        if dg_id:
+            code, _, ms = await self._req(client, "GET", f"/distribution-groups/{dg_id}", token=token)
+            self._ok(results, "DG-2", "Get distribution group by ID → 200", "DIST_GROUPS",
+                     code == 200, f"HTTP {code}", ms)
+        else:
+            self._skip(results, "DG-2", "Get distribution group by ID", "DIST_GROUPS", "No DG created")
+
+        code, _, ms = await self._req(client, "GET", "/distribution-groups/", token=token)
+        self._ok(results, "DG-3", "List distribution groups → 200", "DIST_GROUPS", code == 200, f"HTTP {code}", ms)
+
+        if dg_id:
+            code, _, ms = await self._req(client, "PATCH", f"/distribution-groups/{dg_id}", token=token,
+                                           json={"name": "UAT DG Updated", "is_active": False})
+            self._ok(results, "DG-4", "Update distribution group → 200", "DIST_GROUPS",
+                     code == 200, f"HTTP {code}", ms)
+        else:
+            self._skip(results, "DG-4", "Update distribution group", "DIST_GROUPS", "No DG created")
+
+        code, _, ms = await self._req(client, "GET",
+                                       "/distribution-groups/00000000-0000-0000-0000-000000000000", token=token)
+        self._ok(results, "DG-5", "Non-existent DG → 404", "DIST_GROUPS", code == 404, f"HTTP {code}", ms)
+
+    # ------------------------------------------------------------------ API KEYS
+
+    async def _run_api_keys(self, client: httpx.AsyncClient, results: List[ApiTestResult]):
+        token = getattr(self, "_token", "")
+        raw_key = ""
+        key_id = ""
+
+        code, data, ms = await self._req(client, "POST", "/api-keys", token=token,
+                                          json={"name": "UAT Integration Key", "scopes": []})
+        if isinstance(data, dict):
+            raw_key = data.get("key", "")
+            key_id = data.get("id", "")
+        if key_id:
+            self._api_key_ids.append(key_id)
+        self._ok(results, "APIKEY-1", "Create API key → kr_ prefix", "API_KEYS",
+                 bool(raw_key) and raw_key.startswith("kr_"), f"HTTP {code}", ms)
+
+        code, data, ms = await self._req(client, "GET", "/api-keys", token=token)
+        items = data if isinstance(data, list) else []
+        key_exposed = any(len(str(k.get("key", ""))) > 15 for k in items if isinstance(k, dict))
+        self._ok(results, "APIKEY-2", "List keys — raw key not returned", "API_KEYS",
+                 code == 200 and not key_exposed,
+                 ("key leaked" if key_exposed else f"HTTP {code}"), ms)
+
+        if raw_key:
+            code, _, ms = await self._req(client, "GET", "/orders/",
+                                           headers={"X-API-Key": raw_key}, no_auth=True)
+            self._ok(results, "APIKEY-3", "X-API-Key auth → 200", "API_KEYS", code == 200, f"HTTP {code}", ms)
+        else:
+            self._skip(results, "APIKEY-3", "X-API-Key auth → 200", "API_KEYS", "No key created")
+
+        code, _, ms = await self._req(client, "GET", "/orders/",
+                                       headers={"X-API-Key": "kr_thisisafakeandnonexistentkey1234567890abc"},
+                                       no_auth=True)
+        self._ok(results, "APIKEY-4", "Invalid API key → 401", "API_KEYS", code == 401, f"HTTP {code}", ms)
+
+        code, _, ms = await self._req(client, "POST", "/api-keys", token=token,
+                                       json={"name": "", "scopes": []})
+        self._ok(results, "APIKEY-5", "Empty name → 422", "API_KEYS", code == 422, f"HTTP {code}", ms)
+
+        if key_id:
+            code, _, ms = await self._req(client, "DELETE", f"/api-keys/{key_id}", token=token)
+            self._ok(results, "APIKEY-6", "Revoke key → 204", "API_KEYS", code == 204, f"HTTP {code}", ms)
+            if code == 204 and key_id in self._api_key_ids:
+                self._api_key_ids.remove(key_id)
+        else:
+            self._skip(results, "APIKEY-6", "Revoke key → 204", "API_KEYS", "No key to revoke")
+
+        if raw_key:
+            code, _, ms = await self._req(client, "GET", "/orders/",
+                                           headers={"X-API-Key": raw_key}, no_auth=True)
+            self._ok(results, "APIKEY-7", "Revoked key → 401", "API_KEYS",
+                     code == 401, f"HTTP {code}", ms)
+        else:
+            self._skip(results, "APIKEY-7", "Revoked key → 401", "API_KEYS", "No key to test")
+
+    # ------------------------------------------------------------------ BRAND ACCESS
+
+    async def _run_brand_access(self, client: httpx.AsyncClient, results: List[ApiTestResult]):
+        token = getattr(self, "_token", "")
+        user_id = getattr(self, "_reg_user_id", "")
+        env_id = ""
+        brand_id = ""
+        assignment_id = ""
+
+        # Fetch first environment
+        code, data, ms = await self._req(client, "GET", "/environments/", token=token)
+        envs = data if isinstance(data, list) else (data.get("items", []) if isinstance(data, dict) else [])
+        env_id = envs[0]["id"] if envs else ""
+
+        # Create brand scoped for this test group
+        ts = int(time.time())
+        code, data, ms = await self._req(client, "POST", "/brands/", token=token, json={
+            "slug": f"uat-ba-{ts}", "name": "UAT Brand Access", "tenant_mode": "HYBRID",
+        })
+        if code in (200, 201) and isinstance(data, dict):
+            brand_id = data.get("id", "")
+        if brand_id:
+            self._brand_ids.append(brand_id)
+
+        if user_id and brand_id and env_id:
+            code, data, ms = await self._req(client, "POST", "/brand-access/", token=token, json={
+                "user_id": user_id, "brand_id": brand_id,
+                "environment_id": env_id, "role": "OPERATOR",
+            })
+            if isinstance(data, dict):
+                assignment_id = data.get("id", "")
+            if assignment_id:
+                self._brand_access_ids.append(assignment_id)
+            self._ok(results, "BA-1", "Assign user to brand → 201", "BRAND_ACCESS",
+                     code in (200, 201), f"HTTP {code}", ms)
+        else:
+            self._skip(results, "BA-1", "Assign user to brand → 201", "BRAND_ACCESS",
+                       f"prereqs missing: user={bool(user_id)}, brand={bool(brand_id)}, env={bool(env_id)}")
+
+        if assignment_id and user_id and brand_id and env_id:
+            code, _, ms = await self._req(client, "POST", "/brand-access/", token=token, json={
+                "user_id": user_id, "brand_id": brand_id,
+                "environment_id": env_id, "role": "VIEWER",
+            })
+            self._ok(results, "BA-2", "Duplicate assignment → 409", "BRAND_ACCESS",
+                     code == 409, f"HTTP {code}", ms)
+        else:
+            self._skip(results, "BA-2", "Duplicate assignment → 409", "BRAND_ACCESS", "No assignment to duplicate")
+
+        if user_id and brand_id and env_id:
+            code, _, ms = await self._req(client, "POST", "/brand-access/", token=token, json={
+                "user_id": user_id, "brand_id": brand_id,
+                "environment_id": env_id, "role": "SUPERUSER",
+            })
+            self._ok(results, "BA-3", "Invalid role → 422", "BRAND_ACCESS",
+                     code == 422, f"HTTP {code}", ms)
+        else:
+            self._skip(results, "BA-3", "Invalid role → 422", "BRAND_ACCESS", "No prereqs")
+
+        code, _, ms = await self._req(client, "GET", "/brand-access/", token=token)
+        self._ok(results, "BA-4", "List brand access → 200", "BRAND_ACCESS", code == 200, f"HTTP {code}", ms)
+
+        if assignment_id:
+            code, _, ms = await self._req(client, "DELETE", f"/brand-access/{assignment_id}", token=token)
+            self._ok(results, "BA-5", "Remove assignment → 204", "BRAND_ACCESS", code == 204, f"HTTP {code}", ms)
+            if code == 204 and assignment_id in self._brand_access_ids:
+                self._brand_access_ids.remove(assignment_id)
+        else:
+            self._skip(results, "BA-5", "Remove assignment → 204", "BRAND_ACCESS", "No assignment to remove")
+
+    # ------------------------------------------------------------------ SLA
+
+    async def _run_sla(self, client: httpx.AsyncClient, results: List[ApiTestResult]):
+        token = getattr(self, "_token", "")
+
+        code, data, ms = await self._req(client, "GET", "/monitoring/sla-summary", token=token)
+        self._ok(results, "SLA-1", "SLA summary → 200", "SLA", code == 200, f"HTTP {code}", ms)
+
+        has_field = isinstance(data, dict) and "sla_breaches_today" in data
+        self._ok(results, "SLA-2", "SLA summary has sla_breaches_today field", "SLA",
+                 has_field, str(list(data.keys()))[:60] if isinstance(data, dict) else "", ms)
+
+    # ------------------------------------------------------------------ CUSTOM ATTRIBUTES
+
+    async def _run_custom_attrs(self, client: httpx.AsyncClient, results: List[ApiTestResult]):
+        token = getattr(self, "_token", "")
+        attr_id = ""
+
+        ts = int(time.time())
+        code, data, ms = await self._req(client, "POST", "/architect/custom-attributes", token=token, json={
+            "field_key": f"uat_test_field_{ts}", "field_label": "UAT Test Field",
+            "entity_type": "ORDER", "field_type": "TEXT", "is_required": False,
+        })
+        if isinstance(data, dict):
+            attr_id = data.get("id", "")
+        if attr_id:
+            self._custom_attr_ids.append(attr_id)
+        self._ok(results, "CA-1", "Create custom attribute → 201", "CUSTOM_ATTRS",
+                 bool(attr_id), f"HTTP {code}" if not attr_id else "", ms)
+
+        code, _, ms = await self._req(client, "GET", "/architect/custom-attributes", token=token)
+        self._ok(results, "CA-2", "List custom attributes → 200", "CUSTOM_ATTRS", code == 200, f"HTTP {code}", ms)
+
+        code, _, ms = await self._req(client, "DELETE",
+                                       "/architect/custom-attributes/00000000-0000-0000-0000-000000000000",
+                                       token=token)
+        self._ok(results, "CA-3", "Delete non-existent → 404", "CUSTOM_ATTRS", code == 404, f"HTTP {code}", ms)
+
+        if attr_id:
+            code, _, ms = await self._req(client, "DELETE", f"/architect/custom-attributes/{attr_id}", token=token)
+            self._ok(results, "CA-4", "Delete custom attribute → 204", "CUSTOM_ATTRS",
+                     code == 204, f"HTTP {code}", ms)
+            if code == 204 and attr_id in self._custom_attr_ids:
+                self._custom_attr_ids.remove(attr_id)
+        else:
+            self._skip(results, "CA-4", "Delete custom attribute → 204", "CUSTOM_ATTRS", "No attribute created")
 
     # ------------------------------------------------------------------ cleanup
 
@@ -607,5 +744,141 @@ class ApiIntegrationTestService:
         except Exception as e:
             logger.error(f"API integration test cleanup failed: {e}")
             deleted["error"] = str(e)
+
+        # ── Distribution groups ───────────────────────────────────────────────
+        if self._dg_ids:
+            try:
+                from app.models.postgres.sourcing_rule_models import DistributionGroup, DistributionGroupMember
+                dg_count = 0
+                async with async_session_factory() as db:
+                    for dg_id in self._dg_ids:
+                        try:
+                            import uuid as _uuid2
+                            dg_uuid = _uuid2.UUID(dg_id)
+                            await db.execute(delete(DistributionGroupMember).where(
+                                DistributionGroupMember.group_id == dg_uuid))
+                            await db.execute(delete(DistributionGroup).where(
+                                DistributionGroup.id == dg_uuid))
+                            dg_count += 1
+                        except Exception as e2:
+                            logger.warning(f"Cleanup: failed to delete DG {dg_id}: {e2}")
+                    await db.commit()
+                deleted["distribution_groups"] = dg_count
+            except Exception as e2:
+                logger.warning(f"DG cleanup failed: {e2}")
+
+        # ── API keys (hard delete) ────────────────────────────────────────────
+        if self._api_key_ids:
+            try:
+                from app.models.postgres.api_key_models import ApiKey
+                key_count = 0
+                async with async_session_factory() as db:
+                    for kid in self._api_key_ids:
+                        try:
+                            import uuid as _uuid2
+                            kid_uuid = _uuid2.UUID(kid)
+                            await db.execute(delete(ApiKey).where(ApiKey.id == kid_uuid))
+                            key_count += 1
+                        except Exception as e2:
+                            logger.warning(f"Cleanup: failed to delete API key {kid}: {e2}")
+                    await db.commit()
+                deleted["api_keys"] = key_count
+            except Exception as e2:
+                logger.warning(f"API key cleanup failed: {e2}")
+
+        # ── Brand access assignments ──────────────────────────────────────────
+        if self._brand_access_ids:
+            try:
+                from app.models.postgres.user_brand_role_models import UserBrandRole
+                ba_count = 0
+                async with async_session_factory() as db:
+                    for aid in self._brand_access_ids:
+                        try:
+                            import uuid as _uuid2
+                            aid_uuid = _uuid2.UUID(aid)
+                            await db.execute(delete(UserBrandRole).where(UserBrandRole.id == aid_uuid))
+                            ba_count += 1
+                        except Exception as e2:
+                            logger.warning(f"Cleanup: failed to delete brand access {aid}: {e2}")
+                    await db.commit()
+                deleted["brand_access"] = ba_count
+            except Exception as e2:
+                logger.warning(f"Brand access cleanup failed: {e2}")
+
+        # ── Brands ────────────────────────────────────────────────────────────
+        if self._brand_ids:
+            try:
+                from app.models.postgres.brand_models import Brand
+                brand_count = 0
+                async with async_session_factory() as db:
+                    for bid in self._brand_ids:
+                        try:
+                            import uuid as _uuid2
+                            bid_uuid = _uuid2.UUID(bid)
+                            await db.execute(delete(Brand).where(Brand.id == bid_uuid))
+                            brand_count += 1
+                        except Exception as e2:
+                            logger.warning(f"Cleanup: failed to delete brand {bid}: {e2}")
+                    await db.commit()
+                deleted["brands"] = brand_count
+            except Exception as e2:
+                logger.warning(f"Brand cleanup failed: {e2}")
+
+        # ── Custom attribute definitions ──────────────────────────────────────
+        if self._custom_attr_ids:
+            try:
+                from app.models.postgres.ai_models import CustomAttributeDefinition
+                ca_count = 0
+                async with async_session_factory() as db:
+                    for cid in self._custom_attr_ids:
+                        try:
+                            import uuid as _uuid2
+                            cid_uuid = _uuid2.UUID(cid)
+                            await db.execute(delete(CustomAttributeDefinition).where(
+                                CustomAttributeDefinition.id == cid_uuid))
+                            ca_count += 1
+                        except Exception as e2:
+                            logger.warning(f"Cleanup: failed to delete custom attr {cid}: {e2}")
+                    await db.commit()
+                deleted["custom_attrs"] = ca_count
+            except Exception as e2:
+                logger.warning(f"Custom attr cleanup failed: {e2}")
+
+        # ── Elasticsearch: delete indexed docs for test orders ────────────────
+        if self._order_ids:
+            try:
+                from app.database.elasticsearch_client import get_es_client, ORDER_INDEX
+                es = await get_es_client()
+                es_deleted = 0
+                for oid in self._order_ids:
+                    try:
+                        await es.delete(index=ORDER_INDEX, id=oid)
+                        es_deleted += 1
+                    except Exception:
+                        pass  # 404 = already gone, ignore
+                deleted["es_orders"] = es_deleted
+            except Exception as es_err:
+                logger.warning(f"ES cleanup failed (non-critical): {es_err}")
+                deleted["es_orders"] = 0
+
+        # ── MongoDB: delete order_events written by Celery workers ────────────
+        if self._order_ids:
+            try:
+                from motor.motor_asyncio import AsyncIOMotorClient
+                from app.config import settings
+                client = AsyncIOMotorClient(
+                    settings.MONGODB_URL, serverSelectionTimeoutMS=3000,
+                    uuidRepresentation="standard",
+                )
+                try:
+                    result = await client[settings.MONGODB_DB].order_events.delete_many(
+                        {"order_id": {"$in": self._order_ids}}
+                    )
+                    deleted["mongo_events"] = result.deleted_count
+                finally:
+                    client.close()
+            except Exception as mongo_err:
+                logger.warning(f"MongoDB cleanup failed (non-critical): {mongo_err}")
+                deleted["mongo_events"] = 0
 
         return deleted

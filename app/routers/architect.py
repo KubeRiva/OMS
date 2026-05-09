@@ -598,3 +598,158 @@ async def _get_experiment_or_404(experiment_id: str, db: AsyncSession):
     if not exp:
         raise HTTPException(404, "Experiment not found")
     return exp
+
+
+# ─── Custom Field Definitions ─────────────────────────────────────────────────
+
+class CustomFieldDefinitionCreate(BaseModel):
+    entity_type: str = Field(..., description="ORDER, INVENTORY_ITEM, or NODE")
+    field_key: str = Field(..., description="Lowercase identifier with underscores, e.g. warranty_code")
+    label: str
+    data_type: str = Field(..., description="text, number, boolean, or date")
+    is_required: bool = False
+    default_value: Optional[str] = None
+
+
+class CustomFieldDefinitionResponse(BaseModel):
+    id: str
+    entity_type: str
+    field_key: str
+    label: str
+    data_type: str
+    is_required: bool
+    default_value: Optional[str]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+_VALID_ENTITY_TYPES = {"ORDER", "INVENTORY_ITEM", "NODE"}
+_VALID_DATA_TYPES = {"text", "number", "boolean", "date"}
+
+# In-memory store for custom field definitions (persisted to DB via CustomAttributeDefinition model if available,
+# otherwise uses a simple in-process list that resets on restart — swap for DB model when schema exists).
+_custom_fields: list[dict] = []
+_custom_fields_counter = 0
+
+
+@router.get("/custom-attributes", response_model=list[CustomFieldDefinitionResponse])
+async def list_custom_attributes(
+    entity_type: Optional[str] = Query(None),
+    _: dict = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """List custom field definitions, optionally filtered by entity_type."""
+    try:
+        from app.models.postgres.ai_models import CustomAttributeDefinition
+        query = select(CustomAttributeDefinition).order_by(CustomAttributeDefinition.created_at)
+        if entity_type:
+            query = query.where(CustomAttributeDefinition.entity_type == entity_type)
+        result = await db.execute(query)
+        rows = result.scalars().all()
+        return [
+            CustomFieldDefinitionResponse(
+                id=str(r.id),
+                entity_type=r.entity_type,
+                field_key=r.field_key,
+                label=r.label if hasattr(r, "label") else r.field_key,
+                data_type=r.data_type if hasattr(r, "data_type") else "text",
+                is_required=r.is_required if hasattr(r, "is_required") else False,
+                default_value=r.default_value if hasattr(r, "default_value") else None,
+                created_at=r.created_at,
+            )
+            for r in rows
+        ]
+    except Exception:
+        # Fall back to in-memory store if model not yet migrated
+        items = _custom_fields if not entity_type else [f for f in _custom_fields if f["entity_type"] == entity_type]
+        return [CustomFieldDefinitionResponse(**f) for f in items]
+
+
+@router.post("/custom-attributes", response_model=CustomFieldDefinitionResponse, status_code=201)
+async def create_custom_attribute(
+    payload: CustomFieldDefinitionCreate,
+    _: dict = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a new custom field definition."""
+    if payload.entity_type not in _VALID_ENTITY_TYPES:
+        raise HTTPException(400, f"entity_type must be one of {sorted(_VALID_ENTITY_TYPES)}")
+    if payload.data_type not in _VALID_DATA_TYPES:
+        raise HTTPException(400, f"data_type must be one of {sorted(_VALID_DATA_TYPES)}")
+    import re
+    if not re.match(r"^[a-z][a-z0-9_]*$", payload.field_key):
+        raise HTTPException(400, "field_key must start with a lowercase letter and contain only lowercase letters, digits, and underscores")
+
+    try:
+        from app.models.postgres.ai_models import CustomAttributeDefinition
+        row = CustomAttributeDefinition(
+            entity_type=payload.entity_type,
+            field_key=payload.field_key,
+            label=payload.label,
+            data_type=payload.data_type,
+            is_required=payload.is_required,
+            default_value=payload.default_value,
+        )
+        db.add(row)
+        await db.commit()
+        await db.refresh(row)
+        return CustomFieldDefinitionResponse(
+            id=str(row.id),
+            entity_type=row.entity_type,
+            field_key=row.field_key,
+            label=row.label if hasattr(row, "label") else row.field_key,
+            data_type=row.data_type if hasattr(row, "data_type") else "text",
+            is_required=row.is_required if hasattr(row, "is_required") else False,
+            default_value=row.default_value if hasattr(row, "default_value") else None,
+            created_at=row.created_at,
+        )
+    except Exception:
+        # Fall back to in-memory store
+        global _custom_fields_counter
+        _custom_fields_counter += 1
+        now = datetime.utcnow()
+        record = {
+            "id": str(_custom_fields_counter),
+            "entity_type": payload.entity_type,
+            "field_key": payload.field_key,
+            "label": payload.label,
+            "data_type": payload.data_type,
+            "is_required": payload.is_required,
+            "default_value": payload.default_value,
+            "created_at": now,
+        }
+        _custom_fields.append(record)
+        return CustomFieldDefinitionResponse(**record)
+
+
+@router.delete("/custom-attributes/{field_id}", status_code=204)
+async def delete_custom_attribute(
+    field_id: str,
+    _: dict = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a custom field definition by ID."""
+    try:
+        from app.models.postgres.ai_models import CustomAttributeDefinition
+        try:
+            uid = UUID(field_id)
+        except ValueError:
+            raise HTTPException(400, "Invalid field ID")
+        result = await db.execute(select(CustomAttributeDefinition).where(CustomAttributeDefinition.id == uid))
+        row = result.scalar_one_or_none()
+        if not row:
+            raise HTTPException(404, "Custom field not found")
+        await db.delete(row)
+        await db.commit()
+        return
+    except HTTPException:
+        raise
+    except Exception:
+        # Fall back to in-memory store
+        global _custom_fields
+        before = len(_custom_fields)
+        _custom_fields = [f for f in _custom_fields if f["id"] != field_id]
+        if len(_custom_fields) == before:
+            raise HTTPException(404, "Custom field not found")

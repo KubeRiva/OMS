@@ -5,7 +5,7 @@ import {
   RotateCcw, GitBranch, BarChart2, Zap, AlertCircle, TrendingUp,
   Clock, Package, Layers, FlaskConical, PauseCircle,
 } from 'lucide-react'
-import api from '../api/client'
+import api, { getBrands, type Brand } from '../api/client'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -276,6 +276,12 @@ function ProposalsTab() {
                                 <span className="font-semibold text-gray-700">Max split:</span>
                                 <span className="font-mono">{String(d.max_split_nodes ?? '—')}</span>
                               </div>
+                              {d.brand_id != null && (
+                                <div className="flex flex-wrap gap-2 text-xs">
+                                  <span className="font-semibold text-gray-700">Brand ID:</span>
+                                  <span className="font-mono bg-blue-50 text-blue-700 border border-blue-200 rounded px-1.5 py-0.5">{String(d.brand_id)}</span>
+                                </div>
+                              )}
                               {Array.isArray(d.conditions) && d.conditions.length > 0 && (
                                 <div>
                                   <p className="text-xs text-gray-500 mb-1">Conditions:</p>
@@ -411,11 +417,22 @@ function ProposalsTab() {
 // ─── Patterns Tab ─────────────────────────────────────────────────────────────
 
 function PatternsTab() {
+  const [brandFilter, setBrandFilter] = useState('')
+
+  const { data: brands = [] } = useQuery<Brand[]>({
+    queryKey: ['brands'],
+    queryFn: () => getBrands(),
+  })
+
   const { data: patterns = [], isLoading } = useQuery<Pattern[]>({
     queryKey: ['architect:patterns'],
     queryFn: () => api.get('/architect/patterns').then(r => r.data),
     refetchInterval: 60000,
   })
+
+  const filteredPatterns = brandFilter
+    ? patterns.filter(p => p.cluster_key.startsWith(brandFilter + '|'))
+    : patterns
 
   if (isLoading) return <div className="text-center py-12 text-gray-400 text-sm">Loading patterns...</div>
 
@@ -433,8 +450,34 @@ function PatternsTab() {
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-gray-500">{patterns.length} cluster{patterns.length !== 1 ? 's' : ''} discovered</p>
-      {patterns.map(p => (
+      {/* Cluster key format note */}
+      <div className="flex items-start gap-2 p-3 bg-indigo-50 border border-indigo-100 rounded-lg">
+        <Layers className="w-3.5 h-3.5 text-indigo-500 mt-0.5 flex-shrink-0" />
+        <p className="text-xs text-indigo-700">
+          Cluster keys include brand slug:{' '}
+          <code className="font-mono bg-indigo-100 px-1 rounded">brand_slug|channel|region|amount_bucket|fulfillment_type</code>.
+          Legacy patterns (migrated before brand support) use <code className="font-mono bg-indigo-100 px-1 rounded">default</code> as brand slug.
+        </p>
+      </div>
+
+      {/* Brand filter */}
+      <div className="flex items-center gap-3">
+        <select
+          className="select text-sm max-w-xs"
+          value={brandFilter}
+          onChange={e => setBrandFilter(e.target.value)}
+        >
+          <option value="">All brands</option>
+          {brands.map(b => (
+            <option key={b.id} value={b.slug}>{b.name} ({b.slug})</option>
+          ))}
+        </select>
+        <p className="text-xs text-gray-500">
+          {filteredPatterns.length} cluster{filteredPatterns.length !== 1 ? 's' : ''} discovered
+          {brandFilter && ` for brand "${brandFilter}"`}
+        </p>
+      </div>
+      {filteredPatterns.map(p => (
         <div key={p.cluster_key} className="card p-4">
           <div className="flex items-start justify-between gap-3 mb-3">
             <div>
@@ -488,16 +531,26 @@ function PatternsTab() {
 
 function PerformanceTab() {
   const [period, setPeriod] = useState<7 | 30>(7)
+  const [brandSlug, setBrandSlug] = useState('')
+
+  const { data: brands = [] } = useQuery<Brand[]>({
+    queryKey: ['brands'],
+    queryFn: () => getBrands(),
+  })
 
   const { data: perf, isLoading: perfLoading } = useQuery<AIPerformance>({
-    queryKey: ['architect:ai-perf'],
-    queryFn: () => api.get('/architect/ai-sourcing/performance').then(r => r.data),
+    queryKey: ['architect:ai-perf', brandSlug],
+    queryFn: () => api.get('/architect/ai-sourcing/performance', {
+      params: brandSlug ? { brand_slug: brandSlug } : {},
+    }).then(r => r.data),
     refetchInterval: 60000,
   })
 
   const { data: nodePerf = [], isLoading: nodeLoading } = useQuery<NodePerf[]>({
-    queryKey: ['architect:node-perf', period],
-    queryFn: () => api.get('/architect/node-performance', { params: { period_days: period } }).then(r => r.data),
+    queryKey: ['architect:node-perf', period, brandSlug],
+    queryFn: () => api.get('/architect/node-performance', {
+      params: { period_days: period, ...(brandSlug ? { brand_slug: brandSlug } : {}) },
+    }).then(r => r.data),
     refetchInterval: 60000,
   })
 
@@ -506,6 +559,21 @@ function PerformanceTab() {
 
   return (
     <div className="space-y-5">
+      {/* Brand filter */}
+      <div className="flex items-center gap-3">
+        <label className="text-xs text-gray-500 font-medium whitespace-nowrap">Filter by brand:</label>
+        <select
+          className="select text-sm max-w-xs"
+          value={brandSlug}
+          onChange={e => setBrandSlug(e.target.value)}
+        >
+          <option value="">All brands</option>
+          {brands.map(b => (
+            <option key={b.id} value={b.slug}>{b.name} ({b.slug})</option>
+          ))}
+        </select>
+      </div>
+
       {/* Summary cards */}
       {perfLoading ? (
         <div className="text-center py-8 text-gray-400 text-sm">Loading performance data...</div>

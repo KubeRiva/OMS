@@ -10,12 +10,21 @@ import { useEnvironment, ENV_TYPE_COLORS } from '../contexts/EnvironmentContext'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+type TenantMode = 'B2C_ONLY' | 'B2B_ONLY' | 'HYBRID'
+
+const TENANT_MODE_CONFIG: Record<TenantMode, { label: string; color: string }> = {
+  HYBRID:   { label: 'Hybrid (B2B + B2C)', color: 'text-blue-700 bg-blue-50 border-blue-200' },
+  B2C_ONLY: { label: 'B2C Only',           color: 'text-green-700 bg-green-50 border-green-200' },
+  B2B_ONLY: { label: 'B2B Only',           color: 'text-purple-700 bg-purple-50 border-purple-200' },
+}
+
 interface Organization {
   id: string
   name: string
   slug: string
   description: string | null
   is_active: boolean
+  tenant_mode: TenantMode
   environment_count: number
 }
 
@@ -161,9 +170,18 @@ function OrganizationsTab() {
                   >
                     <div className={`w-2 h-2 rounded-full flex-shrink-0 ${org.is_active ? 'bg-green-400' : 'bg-gray-300'}`} />
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-gray-800 text-sm">{org.name}</span>
                         <span className="font-mono text-gray-400 text-[11px]">/{org.slug}</span>
+                        {(() => {
+                          const mode = org.tenant_mode ?? 'HYBRID'
+                          const cfg = TENANT_MODE_CONFIG[mode]
+                          return (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${cfg.color}`}>
+                              {cfg.label}
+                            </span>
+                          )
+                        })()}
                         {!org.is_active && (
                           <span className="text-[10px] px-1.5 rounded bg-gray-100 text-gray-500 border border-gray-200">Inactive</span>
                         )}
@@ -241,14 +259,19 @@ function OrgFormModal({ org, onClose, onSaved }: { org?: Organization; onClose: 
     name: org?.name || '',
     slug: org?.slug || '',
     description: org?.description || '',
+    tenant_mode: (org?.tenant_mode || 'HYBRID') as TenantMode,
   })
   const [error, setError] = useState('')
 
   const mut = useMutation({
     mutationFn: () =>
       org
-        ? api.patch(`/organizations/${org.id}`, { name: form.name, description: form.description || null })
-        : api.post('/organizations', form),
+        ? api.patch(`/organizations/${org.id}`, {
+            name: form.name,
+            description: form.description || null,
+            tenant_mode: form.tenant_mode,
+          })
+        : api.post('/organizations', { name: form.name, slug: form.slug, description: form.description || null }),
     onSuccess: onSaved,
     onError: (err: any) => {
       const detail = err.response?.data?.detail
@@ -290,6 +313,21 @@ function OrgFormModal({ org, onClose, onSaved }: { org?: Organization; onClose: 
             onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
           />
         </div>
+        <div>
+          <label className="label">Commerce Mode</label>
+          <select
+            className="select"
+            value={form.tenant_mode}
+            onChange={e => setForm(f => ({ ...f, tenant_mode: e.target.value as TenantMode }))}
+          >
+            <option value="HYBRID">Hybrid — B2B + B2C (default)</option>
+            <option value="B2C_ONLY">B2C Only — retail orders, no customer accounts</option>
+            <option value="B2B_ONLY">B2B Only — wholesale/contract orders only</option>
+          </select>
+          <p className="text-[11px] text-gray-400 mt-1">
+            Controls which features are visible. Switching mode never deletes data — it only gates access.
+          </p>
+        </div>
         {error && <p className="text-red-600 text-sm">{error}</p>}
         <div className="flex justify-end gap-2 pt-2">
           <button className="btn-secondary" onClick={onClose}>Cancel</button>
@@ -326,9 +364,16 @@ function EnvironmentsTab() {
   })
 
   // Group by org
-  const byOrg: Record<string, { orgName: string; envs: Environment[] }> = {}
+  const byOrg: Record<string, { orgName: string; orgTenantMode: string; envs: Environment[] }> = {}
   for (const env of envs) {
-    if (!byOrg[env.organization_id]) byOrg[env.organization_id] = { orgName: env.organization_name, envs: [] }
+    if (!byOrg[env.organization_id]) {
+      const matchedOrg = orgs.find(o => o.id === env.organization_id)
+      byOrg[env.organization_id] = {
+        orgName: env.organization_name,
+        orgTenantMode: matchedOrg?.tenant_mode ?? 'HYBRID',
+        envs: [],
+      }
+    }
     byOrg[env.organization_id].envs.push(env)
   }
 
@@ -350,12 +395,18 @@ function EnvironmentsTab() {
         <div className="flex items-center gap-2 text-gray-500"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
       ) : (
         <div className="space-y-4">
-          {Object.entries(byOrg).map(([orgId, { orgName, envs: orgEnvs }]) => (
+          {Object.entries(byOrg).map(([orgId, { orgName, orgTenantMode, envs: orgEnvs }]) => {
+            const tMode = (orgTenantMode || 'HYBRID') as keyof typeof TENANT_MODE_CONFIG
+            const tCfg = TENANT_MODE_CONFIG[tMode] ?? TENANT_MODE_CONFIG.HYBRID
+            return (
             <div key={orgId} className="card overflow-hidden p-0">
               <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
                 <h2 className="font-semibold text-gray-700 text-sm flex items-center gap-2">
                   <Building2 className="w-3.5 h-3.5 text-gray-400" />
                   {orgName}
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${tCfg.color}`}>
+                    {tCfg.label}
+                  </span>
                 </h2>
               </div>
               <div className="divide-y divide-gray-100">
@@ -364,7 +415,8 @@ function EnvironmentsTab() {
                 ))}
               </div>
             </div>
-          ))}
+            )
+          })}
 
           {envs.length === 0 && orgs.length > 0 && (
             <div className="text-center py-12 text-gray-400">

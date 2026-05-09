@@ -22,9 +22,10 @@ from dataclasses import dataclass, field
 from math import radians, cos, sin, asin, sqrt
 from typing import Optional
 
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.postgres.brand_models import BrandConfig, BrandNode
 from app.models.postgres.inventory_models import InventoryItem
 from app.models.postgres.node_models import FulfillmentNode, NodeStatus, NodeType
 from app.models.postgres.order_models import (
@@ -102,6 +103,27 @@ def _evaluate_condition(order: Order, condition: dict) -> bool:
         "customer_email": order.customer_email,
         "shipping_country": order.shipping_country,
         "shipping_state": order.shipping_state,
+        # B2B fields
+        "order_type": getattr(order, "order_type", "RETAIL") or "RETAIL",
+        "payment_terms": getattr(order, "payment_terms", "PREPAID") or "PREPAID",
+        "approval_status": getattr(order, "approval_status", "NOT_REQUIRED") or "NOT_REQUIRED",
+        "po_number": getattr(order, "po_number", None) or "",
+        "customer_account_id": str(order.customer_account_id) if getattr(order, "customer_account_id", None) else "",
+        # Brand fields
+        "brand_id":   str(order.brand_id) if getattr(order, "brand_id", None) else "",
+        "brand_slug": order.brand.slug if (getattr(order, "brand", None) and order.brand) else "",
+        # Line-item fields
+        "has_sku": any(
+            str(getattr(item, "sku", "") or "").upper() == str(value).upper()
+            for item in (getattr(order, "line_items", None) or [])
+        ),
+        "max_item_weight_lbs": max(
+            (
+                (getattr(item, "weight_lbs", None) or 0)
+                for item in (getattr(order, "line_items", None) or [])
+            ),
+            default=0.0,
+        ),
     }
     order_value = field_map.get(field_name)
     if order_value is None:
@@ -373,6 +395,18 @@ class SourcingEngine:
         rule = None if skip_rule else await self._select_rule(order)
         strategy = force_strategy or (rule.strategy if rule else SourcingStrategy.DISTANCE_OPTIMAL)
 
+        # 1a. Check brand AI-sourcing flag — if disabled, fall back to DISTANCE_OPTIMAL
+        #     for any AI strategy requested. New brands start with no patterns and rely
+        #     on graceful degradation; this flag lets operators disable AI per brand.
+        if strategy in (SourcingStrategy.AI_ADAPTIVE, SourcingStrategy.AI_HYBRID):
+            ai_enabled = await self._brand_ai_sourcing_enabled(order)
+            if not ai_enabled:
+                logger.info(
+                    f"Order {_order_id}: ai_sourcing_enabled=False for brand "
+                    f"{getattr(order, 'brand_id', None)}; falling back to DISTANCE_OPTIMAL"
+                )
+                strategy = SourcingStrategy.DISTANCE_OPTIMAL
+
         # Check if this is a backorder re-sourcing (has backordered items)
         has_backorders = any(
             item.quantity_backordered and item.quantity_backordered > 0
@@ -446,6 +480,13 @@ class SourcingEngine:
             region = order.shipping_state or "UNKNOWN"
             ft = order.fulfillment_type.value if order.fulfillment_type else "SHIP_TO_HOME"
 
+            brand_slug = "default"
+            if getattr(order, "brand_id", None):
+                from app.models.postgres.brand_models import Brand
+                _brand_obj = await self.db.get(Brand, order.brand_id)
+                if _brand_obj:
+                    brand_slug = _brand_obj.slug
+
             advisor = AISourcingAdvisor()
             ai_result = await advisor.score_nodes(
                 order=order,
@@ -454,6 +495,7 @@ class SourcingEngine:
                 region=region,
                 amount_bucket=amount_bucket,
                 fulfillment_type=ft,
+                brand_slug=brand_slug,
             )
 
             if ai_result.fallback_used:
@@ -722,9 +764,16 @@ class SourcingEngine:
         return None, current_strategy
 
     async def _select_rule(self, order: Order) -> Optional[SourcingRule]:
+        order_brand_id = getattr(order, "brand_id", None)
         result = await self.db.execute(
             select(SourcingRule)
-            .where(SourcingRule.is_active == True)
+            .where(
+                SourcingRule.is_active == True,
+                or_(
+                    SourcingRule.brand_id == order_brand_id,
+                    SourcingRule.brand_id.is_(None),
+                ),
+            )
             .order_by(SourcingRule.priority.asc())
         )
         rules = result.scalars().all()
@@ -735,19 +784,101 @@ class SourcingEngine:
         logger.debug("No rule matched; using default strategy")
         return None
 
+    async def _brand_ai_sourcing_enabled(self, order: Order) -> bool:
+        """
+        Return True if AI sourcing is enabled for the order's brand.
+        Returns True (default) when the brand has no explicit config or no brand is set.
+        """
+        brand_id = getattr(order, "brand_id", None)
+        if not brand_id:
+            return True  # unbranded orders use global AI config
+        try:
+            result = await self.db.execute(
+                select(BrandConfig).where(BrandConfig.brand_id == brand_id)
+            )
+            cfg = result.scalar_one_or_none()
+            if cfg is None:
+                return True  # no config yet → default enabled
+            return bool(cfg.ai_sourcing_enabled)
+        except Exception as exc:
+            logger.warning(f"_brand_ai_sourcing_enabled failed (non-fatal): {exc}")
+            return True  # fail open
+
     async def _build_candidates(
         self,
         order: Order,
         rule: Optional[SourcingRule],
         allowed_node_types: Optional[list] = None,
     ) -> list[NodeCandidate]:
-        """Load nodes + their inventory and build NodeCandidate objects."""
+        """Load nodes + their inventory and build NodeCandidate objects.
+
+        If the order's brand has active BrandNode records, the candidate set is
+        restricted to those nodes and sorted by BrandNode.priority ASC (lower
+        value = higher priority). When no BrandNode records exist (new brand or
+        unbranded order), all active nodes are considered — this is the fallback
+        learning mode.
+        """
         node_query = select(FulfillmentNode).where(FulfillmentNode.status == NodeStatus.ACTIVE)
         if allowed_node_types:
             node_query = node_query.where(FulfillmentNode.node_type.in_(allowed_node_types))
 
         node_result = await self.db.execute(node_query)
         all_nodes = node_result.scalars().all()
+
+        # Distribution Group / explicit target resolution
+        dg_priority_map: dict[str, int] = {}  # node_id str -> effective priority
+        if rule and getattr(rule, "sourcing_targets", None):
+            from app.models.postgres.sourcing_rule_models import DistributionGroupMember
+            resolved_node_ids: dict[str, int] = {}  # node_id -> effective_priority
+            for target in sorted(rule.sourcing_targets, key=lambda t: t.get("priority", 1)):
+                target_priority = target.get("priority", 1)
+                if target.get("type") == "DISTRIBUTION_GROUP":
+                    dgm_result = await self.db.execute(
+                        select(DistributionGroupMember)
+                        .where(DistributionGroupMember.group_id == target["id"])
+                        .order_by(DistributionGroupMember.priority.asc())
+                    )
+                    for member in dgm_result.scalars().all():
+                        nid = str(member.node_id)
+                        effective = target_priority * 100 + member.priority
+                        if nid not in resolved_node_ids or effective < resolved_node_ids[nid]:
+                            resolved_node_ids[nid] = effective
+                elif target.get("type") == "NODE":
+                    nid = str(target["id"])
+                    effective = target_priority * 100
+                    if nid not in resolved_node_ids or effective < resolved_node_ids[nid]:
+                        resolved_node_ids[nid] = effective
+            if resolved_node_ids:
+                all_nodes = [n for n in all_nodes if str(n.id) in resolved_node_ids]
+                dg_priority_map = resolved_node_ids
+                logger.debug(
+                    f"Order {order.id}: DG/target resolution restricted to {len(all_nodes)} nodes"
+                )
+
+        # Brand-node filtering: restrict candidates to brand-assigned nodes when configured
+        brand_id = getattr(order, "brand_id", None)
+        brand_priority_map: dict[str, int] = {}  # node_id str -> priority
+        if brand_id:
+            try:
+                bn_result = await self.db.execute(
+                    select(BrandNode).where(
+                        BrandNode.brand_id == brand_id,
+                        BrandNode.is_active == True,
+                    )
+                )
+                brand_nodes = bn_result.scalars().all()
+                if brand_nodes:
+                    allowed_node_ids = {str(bn.node_id) for bn in brand_nodes}
+                    brand_priority_map = {str(bn.node_id): bn.priority for bn in brand_nodes}
+                    all_nodes = [n for n in all_nodes if str(n.id) in allowed_node_ids]
+                    logger.debug(
+                        f"Order {order.id}: brand {brand_id} has {len(brand_nodes)} assigned "
+                        f"nodes; restricting candidates to those nodes"
+                    )
+                # else: no BrandNode records → use all nodes (learning-mode fallback)
+            except Exception as exc:
+                logger.warning(f"Brand-node filtering failed (non-fatal): {exc}")
+
         # Apply rule filters
         filtered_nodes = _filter_nodes(all_nodes, rule, order)
         if not filtered_nodes:
@@ -811,6 +942,14 @@ class SourcingEngine:
                 distance_miles=dist_miles,
                 estimated_cost=est_cost,
             ))
+
+        # If brand has node priorities, pre-sort by priority ASC so that the scorer
+        # receives nodes already biased toward brand-preferred nodes. The scorer will
+        # then apply strategy-specific scoring on top of this ordering.
+        if brand_priority_map:
+            candidates.sort(key=lambda c: brand_priority_map.get(str(c.node.id), 9999))
+        elif dg_priority_map:
+            candidates.sort(key=lambda c: dg_priority_map.get(str(c.node.id), 9999))
 
         return candidates
 

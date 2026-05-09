@@ -6,13 +6,15 @@ from typing import Optional
 from datetime import datetime, timedelta, date
 
 from app.database.postgres import get_db
-from app.dependencies.auth import get_current_user
+from app.dependencies.auth import get_current_user, require_superadmin
 from app.models.postgres.order_models import Order, OrderStatus, FulfillmentAllocation
 from app.models.postgres.node_models import FulfillmentNode
 from app.models.postgres.inventory_models import InventoryItem
+from app.models.postgres.brand_models import Brand
 from app.schemas.analytics import (
     DashboardSummary, ChannelBreakdown, FulfillmentTypeBreakdown,
     NodePerformanceMetric, SourcingStrategyMetric, OrderVolumeMetric,
+    OrderTypeBreakdown,
 )
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"], dependencies=[Depends(get_current_user)])
@@ -22,7 +24,11 @@ router = APIRouter(prefix="/analytics", tags=["Analytics"], dependencies=[Depend
 async def get_dashboard(
     from_date: Optional[date] = Query(default=None),
     to_date: Optional[date] = Query(default=None),
+    brand_id: Optional[str] = Query(default=None),
+    channel: Optional[str] = Query(default=None),
+    order_type: Optional[str] = Query(default=None),
     db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     # Default: last 30 days
     if not to_date:
@@ -33,12 +39,27 @@ async def get_dashboard(
     from_dt = datetime.combine(from_date, datetime.min.time())
     to_dt = datetime.combine(to_date, datetime.max.time())
 
+    effective_brand_id = brand_id if current_user.get("is_superadmin") else None
+
+    def _base_filters():
+        conditions = [Order.created_at.between(from_dt, to_dt)]
+        if effective_brand_id:
+            conditions.append(Order.brand_id == effective_brand_id)
+        if channel:
+            conditions.append(Order.channel == channel)
+        if order_type:
+            conditions.append(Order.order_type == order_type)
+        return conditions
+
+    def _brand_filter():
+        return _base_filters()
+
     # Total orders and revenue
     total_result = await db.execute(
         select(
             func.count(Order.id).label("count"),
             func.coalesce(func.sum(Order.total_amount), 0).label("revenue"),
-        ).where(Order.created_at.between(from_dt, to_dt))
+        ).where(*_brand_filter())
     )
     totals = total_result.one()
     total_orders = totals.count
@@ -48,7 +69,7 @@ async def get_dashboard(
     # Orders by status
     status_result = await db.execute(
         select(Order.status, func.count(Order.id).label("count"))
-        .where(Order.created_at.between(from_dt, to_dt))
+        .where(*_brand_filter())
         .group_by(Order.status)
     )
     orders_by_status = {row.status.value: row.count for row in status_result.all()}
@@ -60,7 +81,7 @@ async def get_dashboard(
             func.count(Order.id).label("count"),
             func.coalesce(func.sum(Order.total_amount), 0).label("revenue"),
         )
-        .where(Order.created_at.between(from_dt, to_dt))
+        .where(*_brand_filter())
         .group_by(Order.channel)
     )
     channel_rows = channel_result.all()
@@ -80,7 +101,7 @@ async def get_dashboard(
             Order.fulfillment_type,
             func.count(Order.id).label("count"),
         )
-        .where(Order.created_at.between(from_dt, to_dt))
+        .where(*_brand_filter())
         .group_by(Order.fulfillment_type)
     )
     ft_rows = ft_result.all()
@@ -122,6 +143,26 @@ async def get_dashboard(
         for r in node_result.all()
     ]
 
+    # Orders by order type (RETAIL / WHOLESALE / B2B)
+    order_type_result = await db.execute(
+        select(
+            Order.order_type,
+            func.count(Order.id).label("count"),
+            func.coalesce(func.sum(Order.total_amount), 0).label("revenue"),
+        )
+        .where(*_brand_filter())
+        .group_by(Order.order_type)
+    )
+    orders_by_otype = [
+        OrderTypeBreakdown(
+            order_type=r.order_type or "RETAIL",
+            count=r.count,
+            percentage=round(r.count / max(total_orders, 1) * 100, 2),
+            total_revenue=float(r.revenue),
+        )
+        for r in order_type_result.all()
+    ]
+
     # Inventory alerts (low stock)
     low_stock_result = await db.execute(
         select(InventoryItem, FulfillmentNode)
@@ -151,6 +192,7 @@ async def get_dashboard(
         orders_by_status=orders_by_status,
         orders_by_channel=orders_by_channel,
         orders_by_fulfillment_type=orders_by_ft,
+        orders_by_order_type=orders_by_otype,
         top_nodes=top_nodes,
         sourcing_strategies=[],
         inventory_alerts=inventory_alerts,
@@ -160,16 +202,34 @@ async def get_dashboard(
 @router.get("/orders/volume", response_model=list)
 async def get_order_volume(
     days: int = Query(default=30, ge=1, le=365),
+    from_date: Optional[date] = Query(default=None),
+    to_date: Optional[date] = Query(default=None),
+    brand_id: Optional[str] = Query(default=None),
+    channel: Optional[str] = Query(default=None),
+    order_type: Optional[str] = Query(default=None),
     db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
-    from_dt = datetime.utcnow() - timedelta(days=days)
+    if from_date and to_date:
+        from_dt = datetime.combine(from_date, datetime.min.time())
+        to_dt = datetime.combine(to_date, datetime.max.time())
+        filters = [Order.created_at.between(from_dt, to_dt)]
+    else:
+        from_dt = datetime.utcnow() - timedelta(days=days)
+        filters = [Order.created_at >= from_dt]
+    if brand_id and current_user.get("is_superadmin"):
+        filters.append(Order.brand_id == brand_id)
+    if channel:
+        filters.append(Order.channel == channel)
+    if order_type:
+        filters.append(Order.order_type == order_type)
     result = await db.execute(
         select(
             func.date(Order.created_at).label("date"),
             func.count(Order.id).label("count"),
             func.coalesce(func.sum(Order.total_amount), 0).label("revenue"),
         )
-        .where(Order.created_at >= from_dt)
+        .where(*filters)
         .group_by(func.date(Order.created_at))
         .order_by(func.date(Order.created_at).asc())
     )

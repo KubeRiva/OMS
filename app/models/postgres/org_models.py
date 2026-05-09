@@ -4,6 +4,7 @@ All three tables live in oms_db alongside users/user_groups.
 """
 import enum
 import uuid
+from datetime import datetime, timezone
 
 from sqlalchemy import (
     Boolean,
@@ -20,6 +21,12 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from app.database.postgres import Base
+
+
+class TenantMode(str, enum.Enum):
+    B2C_ONLY = "B2C_ONLY"   # retail-only; B2B endpoints and UI hidden
+    B2B_ONLY = "B2B_ONLY"   # wholesale/contract only; B2C creation blocked
+    HYBRID   = "HYBRID"     # both modes active (default)
 
 
 class EnvironmentType(str, enum.Enum):
@@ -57,6 +64,7 @@ class Organization(Base):
     slug = Column(String(80), unique=True, nullable=False, index=True)
     description = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
+    tenant_mode = Column(String(20), default=TenantMode.HYBRID.value, nullable=False)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(

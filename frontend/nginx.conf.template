@@ -54,10 +54,25 @@ server {
         chunked_transfer_encoding on;
     }
 
-    # SPA fallback — all other routes served by index.html
+    # Hashed assets — immutable cache (filenames change with every build)
+    location /assets/ {
+        root /usr/share/nginx/html;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+    }
+
+    # index.html — never cache so deploys take effect immediately
+    location = /index.html {
+        root /usr/share/nginx/html;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        add_header Pragma "no-cache";
+    }
+
+    # SPA fallback — all routes serve index.html; no-store so new builds are picked up
     location / {
         root /usr/share/nginx/html;
         try_files $uri $uri/ /index.html;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        add_header Pragma "no-cache";
     }
 
     gzip on;

@@ -260,6 +260,8 @@ class AmazonSPConnector(BaseConnector):
             "external_order_id": amazon_order_id,
             "tags": ["amazon"],
             "notes": None,
+            # Stamp brand from connector so inbound orders are automatically attributed
+            "brand_id": str(self.connector.brand_id) if self.connector.brand_id else None,
             "metadata": {
                 "amazon_order_id": amazon_order_id,
                 "amazon_order_status": payload.get("OrderStatus"),

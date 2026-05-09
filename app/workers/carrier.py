@@ -171,7 +171,10 @@ def book_shipment(self, order_id: str, environment_id: str = ""):
     from app.models.postgres.order_models import Order, Shipment, FulfillmentAllocation, OrderStatus, AllocationStatus, ShipmentStatus
     from app.models.postgres.inventory_models import InventoryItem
     # Ensure all FK-referenced tables are in mapper metadata
-    from app.models.postgres import connector_models, auth_models, node_models  # noqa
+    from app.models.postgres import (  # noqa
+        connector_models, auth_models, node_models,
+        brand_models, b2b_models, sourcing_rule_models, lifecycle_models,
+    )
 
     session, engine = _get_sync_session(environment_id)
     try:
@@ -183,10 +186,14 @@ def book_shipment(self, order_id: str, environment_id: str = ""):
         from app.services.lifecycle_engine import resolve_lifecycle_sync, should_book_carrier, PICKUP_TYPES
         ft = order.fulfillment_type.value if hasattr(order.fulfillment_type, "value") else str(order.fulfillment_type or "")
         ch = order.channel.value if hasattr(order.channel, "value") else str(order.channel or "")
+        ot = None
+        if hasattr(order, "order_type") and order.order_type is not None:
+            ot = order.order_type.value if hasattr(order.order_type, "value") else str(order.order_type)
+        bid = str(order.brand_id) if hasattr(order, "brand_id") and order.brand_id else None
         if ft in PICKUP_TYPES:
             logger.info(f"Order {order_id} is {ft} — skipping carrier booking")
             return
-        lc_dict, _ = resolve_lifecycle_sync(environment_id, ft, ch)
+        lc_dict, _ = resolve_lifecycle_sync(environment_id, ft, ch, pipeline_type="ORDER", order_type=ot, brand_id=bid)
         if not should_book_carrier(lc_dict, ft):
             logger.info(f"Order {order_id} lifecycle '{lc_dict['name'] if lc_dict else 'none'}' does not include carrier booking — skipping")
             return
@@ -372,14 +379,18 @@ def book_shipment(self, order_id: str, environment_id: str = ""):
                 queue="connectors",
             )
 
-        # Schedule delivery simulation for each shipment
-        for shipment, _, _, _, _, _ in shipments_created:
-            celery_app.send_task(
-                "app.workers.carrier.simulate_delivery",
-                args=[order_id, str(shipment.id), environment_id],
-                queue="carrier",
-                countdown=10,
-            )
+        # Schedule delivery simulation — only in non-production environments.
+        # In production, deliveries are updated via real carrier tracking webhooks
+        # or the sync_all_tracking beat task.
+        from app.config import settings
+        if settings.ENVIRONMENT != "production":
+            for shipment, _, _, _, _, _ in shipments_created:
+                celery_app.send_task(
+                    "app.workers.carrier.simulate_delivery",
+                    args=[order_id, str(shipment.id), environment_id],
+                    queue="carrier",
+                    countdown=10,
+                )
 
     except Exception as exc:
         session.rollback()
@@ -401,6 +412,11 @@ def book_shipment(self, order_id: str, environment_id: str = ""):
 def simulate_delivery(order_id: str, shipment_id: str, environment_id: str = ""):
     """Simulate package delivery (for demo/testing)."""
     from app.models.postgres.order_models import Order, Shipment, OrderStatus, ShipmentStatus
+    import app.models.postgres.brand_models          # noqa: F401
+    import app.models.postgres.b2b_models            # noqa: F401
+    import app.models.postgres.auth_models           # noqa: F401
+    import app.models.postgres.sourcing_rule_models  # noqa: F401
+    import app.models.postgres.lifecycle_models      # noqa: F401
 
     session, engine = _get_sync_session(environment_id)
     try:
@@ -518,6 +534,19 @@ def simulate_delivery(order_id: str, shipment_id: str, environment_id: str = "")
                 args=[order_id],
                 queue="notifications",
             )
+
+        # Phase 4: Auto-create invoice when B2B order reaches DELIVERED
+        order_type_val = order.order_type.value if hasattr(order.order_type, "value") else str(order.order_type or "")
+        if (
+            order.status == OrderStatus.DELIVERED
+            and order_type_val == "B2B"
+            and order.customer_account_id
+        ):
+            celery_app.send_task(
+                "app.workers.invoices.auto_create_invoice",
+                args=[str(order_id), environment_id],
+                queue="notifications",
+            )
     finally:
         session.close()
         engine.dispose()
@@ -530,6 +559,11 @@ def simulate_delivery(order_id: str, shipment_id: str, environment_id: str = "")
 def sync_all_tracking():
     """Periodic task: sync tracking for in-transit shipments."""
     from app.models.postgres.order_models import Shipment, ShipmentStatus
+    import app.models.postgres.brand_models          # noqa: F401
+    import app.models.postgres.b2b_models            # noqa: F401
+    import app.models.postgres.auth_models           # noqa: F401
+    import app.models.postgres.sourcing_rule_models  # noqa: F401
+    import app.models.postgres.lifecycle_models      # noqa: F401
 
     session, engine = _get_sync_session()
     try:
@@ -548,11 +582,16 @@ def sync_all_tracking():
 )
 def process_packed_allocations_without_shipments():
     """Periodic task: create shipments for PACKED allocations without shipments.
-    
+
     Handles the case where allocations are created dynamically (e.g., via backorder re-sourcing)
     but the order is already PARTIALLY_DELIVERED, so the normal book_shipment task doesn't trigger.
     """
     from app.models.postgres.order_models import Order, Shipment, FulfillmentAllocation, AllocationStatus
+    import app.models.postgres.brand_models          # noqa: F401
+    import app.models.postgres.b2b_models            # noqa: F401
+    import app.models.postgres.auth_models           # noqa: F401
+    import app.models.postgres.sourcing_rule_models  # noqa: F401
+    import app.models.postgres.lifecycle_models      # noqa: F401
 
     session, engine = _get_sync_session()
     try:

@@ -46,6 +46,13 @@ class SourcingStrategyMetric(BaseModel):
     avg_split_nodes: float
 
 
+class OrderTypeBreakdown(BaseModel):
+    order_type: str
+    count: int
+    percentage: float
+    total_revenue: float
+
+
 class DashboardSummary(BaseModel):
     period_start: str
     period_end: str
@@ -55,6 +62,7 @@ class DashboardSummary(BaseModel):
     orders_by_status: dict
     orders_by_channel: List[ChannelBreakdown]
     orders_by_fulfillment_type: List[FulfillmentTypeBreakdown]
+    orders_by_order_type: List[OrderTypeBreakdown]
     top_nodes: List[NodePerformanceMetric]
     sourcing_strategies: List[SourcingStrategyMetric]
     inventory_alerts: List[dict]

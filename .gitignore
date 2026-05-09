@@ -3,6 +3,11 @@
 .env.*
 !.env.example
 
+# Strategy/planning documents
+*.docx
+*.xlsx
+*.pptx
+
 # Python
 __pycache__/
 *.py[cod]

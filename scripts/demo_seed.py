@@ -1,5 +1,5 @@
 """
-demo_seed.py — KubeRiva investor demo seed script
+demo_seed.py — Demo environment seed script for KubeRiva OMS
 
 Creates a realistic demo environment:
   • 3 fulfillment nodes (Chicago near capacity, SF Warehouse, NYC DC)

@@ -4,7 +4,7 @@ import {
   ChevronDown, ChevronUp, Package, Truck, BarChart3, FlaskConical,
   Shield, RefreshCw,
 } from 'lucide-react'
-import api from '../api/client'
+import api, { getBrands } from '../api/client'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -105,14 +105,20 @@ const TEST_CATALOG = [
 // ── API Test definitions (mirrors run_e2e.sh) ────────────────────────────────
 
 const API_TEST_GROUPS = [
-  { group: 'AUTH',     color: 'indigo', count: 11 },
-  { group: 'ORDERS',   color: 'blue',   count: 8  },
-  { group: 'INVENTORY',color: 'teal',   count: 5  },
-  { group: 'ANALYTICS',color: 'amber',  count: 3  },
-  { group: 'SEARCH',   color: 'pink',   count: 2  },
-  { group: 'AI',       color: 'violet', count: 2  },
-  { group: 'RBAC',     color: 'orange', count: 4  },
-  { group: 'SECURITY', color: 'red',    count: 3  },
+  { group: 'AUTH',         color: 'indigo', count: 11 },
+  { group: 'ORDERS',       color: 'blue',   count: 8  },
+  { group: 'INVENTORY',    color: 'teal',   count: 5  },
+  { group: 'ANALYTICS',    color: 'amber',  count: 3  },
+  { group: 'SEARCH',       color: 'pink',   count: 2  },
+  { group: 'AI',           color: 'violet', count: 2  },
+  { group: 'RBAC',         color: 'orange', count: 4  },
+  { group: 'SECURITY',     color: 'red',    count: 3  },
+  { group: 'BRAND',        color: 'purple', count: 4  },
+  { group: 'DIST_GROUPS',  color: 'cyan',   count: 5  },
+  { group: 'API_KEYS',     color: 'green',  count: 7  },
+  { group: 'BRAND_ACCESS', color: 'rose',   count: 5  },
+  { group: 'SLA',          color: 'yellow', count: 2  },
+  { group: 'CUSTOM_ATTRS', color: 'sky',    count: 4  },
 ]
 
 // Runs all API tests in sequence; calls onProgress(cases[]) after each case
@@ -419,6 +425,49 @@ async function runApiTests(
   const leaked = connectors.filter((c: any) => c?.config?.webhook_secret && c.config.webhook_secret !== '***')
   push('SEC-3', 'Connector webhook_secret masked', 'SECURITY', leaked.length === 0, leaked.length > 0 ? 'Secret leaked' : '')
 
+  // ── BRAND ENTITY ──────────────────────────────────────────────────────────
+  // Resolve first active brand via the API client (uses auth token already set)
+  let firstBrandId = ''
+  try {
+    const brandsResp = await getBrands({ is_active: true })
+    firstBrandId = Array.isArray(brandsResp) ? (brandsResp[0]?.id ?? '') : ''
+  } catch { /* no brands available — tests will skip gracefully */ }
+
+  markRunning('BRAND-1', 'Create brand → 200/201', 'BRAND')
+  r = await req('POST', '/brands/', { slug: 'test-brand-uat', name: 'Test Brand UAT', tenant_mode: 'HYBRID' })
+  const createdBrandId = r.data?.id ?? firstBrandId
+  push('BRAND-1', 'Create brand → 200/201', 'BRAND', r.code === 200 || r.code === 201 || r.code === 409, `HTTP ${r.code}${r.code === 409 ? ' (already exists)' : ''}`)
+
+  markRunning('BRAND-2', 'Brand filter — Orders → 200', 'BRAND')
+  if (createdBrandId) {
+    r = await req('GET', `/orders/?brand_id=${createdBrandId}`)
+    push('BRAND-2', 'Brand filter — Orders → 200', 'BRAND', r.code === 200, `HTTP ${r.code} · brand_id=${createdBrandId.slice(0, 8)}…`)
+  } else {
+    push('BRAND-2', 'Brand filter — Orders → 200', 'BRAND', false, 'No brand available — skipped')
+  }
+
+  markRunning('BRAND-3', 'Brand filter — Dashboard → 200', 'BRAND')
+  if (createdBrandId) {
+    r = await req('GET', `/analytics/dashboard?brand_id=${createdBrandId}`)
+    push('BRAND-3', 'Brand filter — Dashboard → 200', 'BRAND', r.code === 200, `HTTP ${r.code}`)
+  } else {
+    push('BRAND-3', 'Brand filter — Dashboard → 200', 'BRAND', false, 'No brand available — skipped')
+  }
+
+  markRunning('BRAND-4', 'Create sourcing rule with brand_id → 200/201', 'BRAND')
+  if (createdBrandId) {
+    r = await req('POST', '/sourcing-rules/', {
+      name: 'UAT Brand Rule',
+      strategy: 'DISTANCE_OPTIMAL',
+      priority: 999,
+      is_active: false,
+      brand_id: createdBrandId,
+    })
+    push('BRAND-4', 'Sourcing rule with brand_id → 200/201', 'BRAND', r.code === 200 || r.code === 201, `HTTP ${r.code}`)
+  } else {
+    push('BRAND-4', 'Sourcing rule with brand_id → 200/201', 'BRAND', false, 'No brand available — skipped')
+  }
+
   return cases
 }
 
@@ -428,7 +477,10 @@ const isPipeline = (name: string) => /^TC-\d+:/.test(name)
 
 const GROUP_COLOR: Record<string, string> = {
   AUTH: 'indigo', ORDERS: 'blue', INVENTORY: 'teal',
-  ANALYTICS: 'amber', SEARCH: 'pink', AI: 'violet', RBAC: 'orange', SECURITY: 'red',
+  ANALYTICS: 'amber', SEARCH: 'pink', AI: 'violet', RBAC: 'orange',
+  SECURITY: 'red', BRAND: 'purple',
+  DIST_GROUPS: 'cyan', API_KEYS: 'green', BRAND_ACCESS: 'rose',
+  SLA: 'yellow', CUSTOM_ATTRS: 'sky',
 }
 
 // ── Main Page ────────────────────────────────────────────────────────────────
@@ -679,7 +731,7 @@ export default function E2ETestingPage() {
                 <div>
                   <h2 className="text-lg font-semibold text-slate-900">API Integration Test Suite</h2>
                   <p className="text-sm text-slate-500 mt-1">
-                    Server-side HTTP tests across Auth, Orders, Inventory, Analytics, Search, AI, RBAC, and Security — mirrors <code className="bg-slate-100 px-1 rounded">run_e2e.sh</code>. All test data is cleaned up automatically.
+                    Server-side HTTP tests across Auth, Orders, Inventory, Analytics, Search, AI, RBAC, Shopify, Security, Brand, Distribution Groups, API Keys, Brand Access, SLA, and Custom Attributes. All test data is cleaned up automatically.
                   </p>
                 </div>
                 <button
@@ -729,7 +781,7 @@ export default function E2ETestingPage() {
                   </div>
                   {apiTotal > 0 && (
                     <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${apiPass / Math.max(apiTotal, 42) * 100}%` }} />
+                      <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${apiPass / Math.max(apiTotal, 80) * 100}%` }} />
                     </div>
                   )}
                 </div>
@@ -796,8 +848,8 @@ export default function E2ETestingPage() {
               <div className="bg-white rounded-lg shadow-lg p-12 text-center border border-slate-200">
                 <Shield className="w-16 h-16 text-slate-300 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-slate-600 mb-2">API integration tests ready</h3>
-                <p className="text-slate-500 mb-2">Covers Auth, Orders, Inventory, Analytics, Search, AI, RBAC, and Security regression checks.</p>
-                <p className="text-xs text-slate-400">Runs server-side via httpx — equivalent to <code className="bg-slate-100 px-1 rounded">bash run_e2e.sh</code>. All test data cleaned up automatically.</p>
+                <p className="text-slate-500 mb-2">Covers Auth, Orders, Inventory, Analytics, Search, AI, RBAC, Shopify, Security, Brand, Distribution Groups, API Keys, Brand Access, SLA, and Custom Attributes.</p>
+                <p className="text-xs text-slate-400">Runs server-side via httpx. All test data cleaned up automatically after each run.</p>
               </div>
             )}
           </div>
