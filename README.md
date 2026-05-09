@@ -333,7 +333,7 @@ flowchart TD
     PICK --> PACK[Celery: PACKING]
     PACK --> SHIP[Celery: READY_TO_SHIP]
     SHIP --> PUSH[Connector push to Shopify or Amazon]
-    PUSH --> LABEL[Learning worker labels outcome\nbrand_slug|channel|region|amount|type]
+    PUSH --> LABEL["Learning worker labels outcome<br/>brand_slug·channel·region·amount·type"]
     LABEL --> PATTERN[(MongoDB pattern store)]
 ```
 
