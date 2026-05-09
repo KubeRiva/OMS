@@ -236,34 +236,34 @@ graph TB
     end
 
     subgraph ext[" External Connectors "]
-        SHP["Shopify\nWebhook inbound · Fulfillment push"]
-        AMZ["Amazon SP-API\nPolling inbound · Fulfillment push"]
+        SHP["Shopify\nWebhook inbound · Fulfillment push\nbrand auto-stamp on orders"]
+        AMZ["Amazon SP-API\nPolling inbound · Fulfillment push\nbrand auto-stamp on orders"]
     end
 
     subgraph app[" FastAPI Application — Python 3.12 "]
-        MW["EnvironmentMiddleware\nResolves tenant from X-OMS-Environment header"]
-        RT["25+ Routers\n/orders · /inventory · /nodes · /sourcing-rules · /distribution-groups\n/brands · /brand-access · /api-keys · /lifecycles\n/connectors · /architect · /ai · /webhooks · /b2b"]
+        MW["EnvironmentMiddleware\nResolves tenant from X-OMS-Environment header\nBrand filter injected into request context"]
+        RT["25+ Routers\n/orders · /inventory · /nodes · /sourcing-rules · /distribution-groups\n/brands · /brand-access · /api-keys · /lifecycles · /b2b\n/connectors · /architect · /ai · /webhooks"]
     end
 
     subgraph db[" Persistence Layer "]
-        PG[("PostgreSQL 16\nper-tenant data plane\nOrders · Inventory · Nodes · Rules")]
-        MG[("MongoDB 7\nAudit events · AI patterns\nSourcing outcomes")]
-        RD[("Redis 7.2\nCache · Celery broker\nSession store")]
+        PG[("PostgreSQL 16\nper-tenant data plane\nOrders · Inventory · Nodes · Rules\nBrands · B2B Accounts · API Keys · Invoices")]
+        MG[("MongoDB 7\nAudit events · AI patterns\nSourcing outcomes · SLA breach events")]
+        RD[("Redis 7.2\nCache · Celery broker\nSLA breach counters · Session store")]
         ES[("Elasticsearch 8.12\nFull-text order\n& product search")]
     end
 
     subgraph workers[" Celery Workers — 7 Queues "]
-        Q1["sourcing"]
-        Q2["fulfillment"]
+        Q1["sourcing\nbrand + B2B aware"]
+        Q2["fulfillment\nSLA timer tracking"]
         Q3["carrier"]
-        Q4["notifications"]
+        Q4["notifications\nB2B approval alerts"]
         Q5["webhooks"]
-        Q6["connectors"]
-        Q7["learning"]
+        Q6["connectors\nbrand auto-stamp"]
+        Q7["learning\nbrand_slug cluster key"]
     end
 
     clients -->|"HTTP / REST"| app
-    ext -->|"Webhook POST"| app
+    ext -->|"Webhook POST + brand_id"| app
     app --> PG & MG & RD & ES
     app -->|"enqueue tasks"| RD
     RD -->|"broker"| workers
@@ -373,11 +373,13 @@ stateDiagram-v2
 ### Request Lifecycle
 
 1. Client POSTs to `POST /orders` — Pydantic v2 validates, written to **PostgreSQL**, indexed in **Elasticsearch**
-2. `order.created` event written to **MongoDB** audit log
-3. `source_order` task enqueued on **Redis**-backed `sourcing` Celery queue
-4. Sourcing engine evaluates rules → selects strategy → may invoke `AI_ADAPTIVE` node scoring
-5. `FulfillmentAllocation` created → pipeline flows: `sourcing → fulfillment → carrier → notifications → webhooks`
-6. `learning` worker labels delivery outcome → feeds pattern store → triggers nightly discovery
+2. **Brand stamping**: connector's `brand_id` is applied to the order if set; `UserBrandRole` filter validates the requesting user has access to that brand
+3. **B2B approval gate**: if `order.order_type = B2B` and `order.total_amount > account.approval_threshold`, order is set to `PENDING_APPROVAL` and a notification task fires — sourcing does not run until a manager approves
+4. `order.created` event written to **MongoDB** audit log
+5. `source_order` task enqueued on **Redis**-backed `sourcing` Celery queue
+6. Sourcing engine resolves brand-aware lifecycle → matches sourcing rules (brand + B2B conditions) → resolves Distribution Group targets → selects strategy → may invoke `AI_ADAPTIVE` node scoring with `brand_slug` in cluster key
+7. `FulfillmentAllocation` created → **SLA timer starts** per lifecycle step → pipeline flows: `sourcing → fulfillment → carrier → notifications → webhooks`
+8. `learning` worker labels delivery outcome with `brand_slug|channel|region|amount|type` cluster key → feeds pattern store → triggers nightly discovery
 
 ---
 
