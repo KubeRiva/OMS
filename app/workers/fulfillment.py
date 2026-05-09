@@ -25,7 +25,6 @@ def _log_event_sync(order_id: str, event_type: str, data: dict, environment_id: 
     """Write an audit event to MongoDB from a synchronous Celery context.
     Creates its own Motor client per call to avoid event-loop conflicts."""
     import asyncio
-    from app.config import settings
     from app.workers.env_utils import get_env_mongo_events_db
 
     mongo_events_db = get_env_mongo_events_db(environment_id)
@@ -63,7 +62,7 @@ def start_picking(self, order_id: str, environment_id: str = ""):
 
     CRITICAL: Validates order state and allocation consistency before transition.
     """
-    from app.models.postgres import (  # noqa: register all mappers Order references
+    from app.models.postgres import (  # noqa: F401 — register all mappers Order references
         order_models, inventory_models, node_models, sourcing_rule_models,
         connector_models, auth_models, lifecycle_models, b2b_models, brand_models,
     )
@@ -178,7 +177,7 @@ def start_picking(self, order_id: str, environment_id: str = ""):
 )
 def complete_packing(self, order_id: str, environment_id: str = ""):
     """Transition order PACKING → READY_TO_SHIP or READY_FOR_PICKUP per lifecycle."""
-    from app.models.postgres import (  # noqa: register all mappers Order references
+    from app.models.postgres import (  # noqa: F401 — register all mappers Order references
         order_models, inventory_models, node_models, sourcing_rule_models,
         connector_models, auth_models, lifecycle_models, b2b_models, brand_models,
     )

@@ -4,11 +4,14 @@ Provides comprehensive test workflows for the OMS system.
 """
 import uuid
 import asyncio
+import logging
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, asdict
 from enum import Enum
 from datetime import datetime, timezone
 from decimal import Decimal
+
+logger = logging.getLogger(__name__)
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, or_

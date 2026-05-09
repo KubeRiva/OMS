@@ -274,7 +274,7 @@ def retry_backordered_orders(environment_id: str = ""):
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
     from app.config import settings
-    from app.models.postgres import (  # noqa: register all mappers Order references
+    from app.models.postgres import (  # noqa: F401 — register all mappers Order references
         order_models, inventory_models, node_models, sourcing_rule_models,
         connector_models, auth_models, lifecycle_models, b2b_models, brand_models,
     )
@@ -348,7 +348,7 @@ def source_pending_orders(environment_id: str = ""):
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
     from app.config import settings
-    from app.models.postgres import (  # noqa: register all mappers Order references
+    from app.models.postgres import (  # noqa: F401 — register all mappers Order references
         order_models, inventory_models, node_models, sourcing_rule_models,
         connector_models, auth_models, lifecycle_models, b2b_models, brand_models,
     )
