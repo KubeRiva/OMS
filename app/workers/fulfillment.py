@@ -146,7 +146,6 @@ def start_picking(self, order_id: str, environment_id: str = ""):
         # Auto-advance to packing. In production this would be triggered by
         # a warehouse scan event; for non-production environments we auto-advance
         # after a short delay to keep the demo pipeline moving.
-        from app.config import settings
         pick_delay = 5 if settings.ENVIRONMENT != "production" else 300
         celery_app.send_task(
             "app.workers.fulfillment.complete_packing",
