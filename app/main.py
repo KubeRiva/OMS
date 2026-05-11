@@ -610,9 +610,9 @@ app.include_router(lifecycles.router)
 app.include_router(distribution_groups.router)
 app.include_router(brand_access.router)
 app.include_router(api_keys_module.router)
-app.include_router(returns_module.router, prefix="/api")
-app.include_router(order_refunds_router, prefix="/api")
-app.include_router(customer_profiles_router, prefix="/api")
+app.include_router(returns_module.router)
+app.include_router(order_refunds_router)
+app.include_router(customer_profiles_router)
 
 if settings.ENVIRONMENT == "development":
     logger.info("Testing endpoints enabled (development mode only)")
