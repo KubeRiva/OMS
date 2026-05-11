@@ -1558,6 +1558,27 @@ class E2ETestService:
 
         return results
 
+    async def _delete_order_children(self, order_id) -> None:
+        """Delete all FK-dependent rows for an order before deleting the order itself."""
+        from app.models.postgres.return_models import OrderReturn, Refund
+        from app.models.postgres.invoice_models import Invoice, CreditMemo
+        from app.models.postgres.ai_models import SourcingOutcomeLabel
+
+        # Must delete in FK-safe order: children before parents
+        await self.db.execute(delete(SourcingOutcomeLabel).where(SourcingOutcomeLabel.order_id == order_id))
+        await self.db.execute(delete(Refund).where(Refund.order_id == order_id))
+        await self.db.execute(delete(CreditMemo).where(CreditMemo.order_id == order_id))
+        # ReturnItems cascade-delete when OrderReturn is deleted
+        await self.db.execute(delete(OrderReturn).where(OrderReturn.order_id == order_id))
+        # InvoiceLineItems and InvoicePayments cascade-delete when Invoice is deleted
+        await self.db.execute(delete(Invoice).where(Invoice.order_id == order_id))
+        await self.db.execute(delete(WebhookEvent).where(WebhookEvent.order_id == order_id))
+        await self.db.execute(delete(ConnectorEvent).where(ConnectorEvent.order_id == order_id))
+        await self.db.execute(delete(Shipment).where(Shipment.order_id == order_id))
+        await self.db.execute(delete(FulfillmentAllocation).where(FulfillmentAllocation.order_id == order_id))
+        await self.db.execute(delete(OrderItem).where(OrderItem.order_id == order_id))
+        await self.db.execute(delete(Order).where(Order.id == order_id))
+
     async def cleanup(self) -> Dict[str, int]:
         """Delete all test data created during testing."""
         deleted_counts = {}
@@ -1566,12 +1587,7 @@ class E2ETestService:
         try:
             # ── Step 1: delete orders tracked by this run ─────────────────────
             for order_id in self.test_resources["orders"]:
-                await self.db.execute(delete(WebhookEvent).where(WebhookEvent.order_id == order_id))
-                await self.db.execute(delete(ConnectorEvent).where(ConnectorEvent.order_id == order_id))
-                await self.db.execute(delete(Shipment).where(Shipment.order_id == order_id))
-                await self.db.execute(delete(FulfillmentAllocation).where(FulfillmentAllocation.order_id == order_id))
-                await self.db.execute(delete(OrderItem).where(OrderItem.order_id == order_id))
-                await self.db.execute(delete(Order).where(Order.id == order_id))
+                await self._delete_order_children(order_id)
                 all_cleaned_order_ids.append(str(order_id))
 
             deleted_counts["orders"] = len(self.test_resources["orders"])
@@ -1591,12 +1607,7 @@ class E2ETestService:
             )
             orphan_ids = [row[0] for row in orphan_result.fetchall()]
             for order_id in orphan_ids:
-                await self.db.execute(delete(WebhookEvent).where(WebhookEvent.order_id == order_id))
-                await self.db.execute(delete(ConnectorEvent).where(ConnectorEvent.order_id == order_id))
-                await self.db.execute(delete(Shipment).where(Shipment.order_id == order_id))
-                await self.db.execute(delete(FulfillmentAllocation).where(FulfillmentAllocation.order_id == order_id))
-                await self.db.execute(delete(OrderItem).where(OrderItem.order_id == order_id))
-                await self.db.execute(delete(Order).where(Order.id == order_id))
+                await self._delete_order_children(order_id)
                 all_cleaned_order_ids.append(str(order_id))
 
             deleted_counts["orphaned_orders"] = len(orphan_ids)
@@ -1618,12 +1629,7 @@ class E2ETestService:
             )
             email_order_ids = [row[0] for row in email_order_result.fetchall()]
             for order_id in email_order_ids:
-                await self.db.execute(delete(WebhookEvent).where(WebhookEvent.order_id == order_id))
-                await self.db.execute(delete(ConnectorEvent).where(ConnectorEvent.order_id == order_id))
-                await self.db.execute(delete(Shipment).where(Shipment.order_id == order_id))
-                await self.db.execute(delete(FulfillmentAllocation).where(FulfillmentAllocation.order_id == order_id))
-                await self.db.execute(delete(OrderItem).where(OrderItem.order_id == order_id))
-                await self.db.execute(delete(Order).where(Order.id == order_id))
+                await self._delete_order_children(order_id)
                 all_cleaned_order_ids.append(str(order_id))
             deleted_counts["email_pattern_orders"] = len(email_order_ids)
 

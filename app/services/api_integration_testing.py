@@ -698,11 +698,19 @@ class ApiIntegrationTestService:
 
             async with async_session_factory() as db:
                 # Delete orders
+                from app.models.postgres.return_models import OrderReturn, Refund
+                from app.models.postgres.invoice_models import Invoice, CreditMemo
+                from app.models.postgres.ai_models import SourcingOutcomeLabel
                 order_count = 0
                 for oid in self._order_ids:
                     try:
                         import uuid as _uuid
                         oid_uuid = _uuid.UUID(oid)
+                        await db.execute(delete(SourcingOutcomeLabel).where(SourcingOutcomeLabel.order_id == oid_uuid))
+                        await db.execute(delete(Refund).where(Refund.order_id == oid_uuid))
+                        await db.execute(delete(CreditMemo).where(CreditMemo.order_id == oid_uuid))
+                        await db.execute(delete(OrderReturn).where(OrderReturn.order_id == oid_uuid))
+                        await db.execute(delete(Invoice).where(Invoice.order_id == oid_uuid))
                         await db.execute(delete(WebhookEvent).where(WebhookEvent.order_id == oid_uuid))
                         await db.execute(delete(ConnectorEvent).where(ConnectorEvent.order_id == oid_uuid))
                         await db.execute(delete(Shipment).where(Shipment.order_id == oid_uuid))
